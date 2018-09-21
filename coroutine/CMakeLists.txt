@@ -7,9 +7,9 @@ PROJECT(coroutine)
 IF(UNIX)
     SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
     SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./")
-    SET(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -O0 -pg")
-    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -DNDEBUG -O2")
-	SET(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
+    SET(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -DUSE_FCONTEXT -O0 -pg")
+    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -DNDEBUG -DUSE_FCONTEXT -O2")
+	SET(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -DUSE_FCONTEXT -O3")
     MESSAGE(STATUS "Linux")
 ENDIF(UNIX)
 
@@ -36,7 +36,9 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/src/options"
 	"${PROJECT_SOURCE_DIR}/src/net"
 	"${PROJECT_SOURCE_DIR}/src/comutex"
+	"${PROJECT_SOURCE_DIR}/src/async"
 	"${PROJECT_SOURCE_DIR}/src/public"
+	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/include"
 )
 
 IF(WIN32)
@@ -71,6 +73,11 @@ SET(TIMER
 	"${PROJECT_SOURCE_DIR}/src/timer/timer_detail.cpp"
 )
 
+SET(ASYNC
+    "${PROJECT_SOURCE_DIR}/src/async/async_queue.h"
+	"${PROJECT_SOURCE_DIR}/src/async/async_queue.cpp"
+)
+
 SET(NET
     "${PROJECT_SOURCE_DIR}/src/net/net.h"
 )
@@ -101,6 +108,7 @@ SOURCE_GROUP(net\\windows FILES ${NET_IO})
 ENDIF(WIN32)
 SOURCE_GROUP(timer FILES ${TIMER})
 SOURCE_GROUP(comutex FILES ${COMUTEX})
+SOURCE_GROUP(async FILES ${ASYNC})
 SOURCE_GROUP(\\ FILES ${SRC})
 
 ADD_LIBRARY(hnet STATIC
@@ -110,6 +118,7 @@ ADD_LIBRARY(hnet STATIC
 	${NET_IO}
 	${TIMER}
 	${COMUTEX}
+	${ASYNC}
 	${PUBLIC}
 	${OPTIONS}
 )

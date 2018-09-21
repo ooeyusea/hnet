@@ -2,7 +2,11 @@
 #define __HNET_H__
 #include <functional>
 #ifdef WIN32
+#ifndef _WINSOCK2API_
+#include <WinSock2.h>
+#else
 #include <Windows.h>
+#endif
 typedef SOCKET sock_t;
 #else
 typedef int32_t sock_t;
@@ -95,6 +99,16 @@ namespace hyper_net {
 	private:
 		CoMutexImpl * _impl;
 	};
+
+	class IAsyncQueue {
+	public:
+		~IAsyncQueue() {}
+
+		virtual void Call(uint32_t threadId, void * data) = 0;
+		virtual void Shutdown() = 0;
+	};
+
+	IAsyncQueue * CreateAsyncQueue(int32_t threadCount, bool complete, const std::function<void(void * data)>& f);
 }
 
 #define hn_fork hyper_net::Forker()-
@@ -113,5 +127,7 @@ namespace hyper_net {
 #define hn_ticker hyper_net::CountTicker
 
 #define hn_mutex hyper_net::CoMutex
+
+#define hn_create_async hyper_net::CreateAsyncQueue
 
 #endif // !__HNET_H__

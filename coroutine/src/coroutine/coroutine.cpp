@@ -62,21 +62,22 @@ namespace hyper_net {
 	}
 
 	void Coroutine::SwapIn() {
-#ifdef WIN32
+#ifndef USE_FCONTEXT
 		SwitchToFiber(_ctx);
 #else
+		jump_fcontext(&GetTlsContext(), _ctx, vp_);
 #endif
 	}
 
 	void Coroutine::SwapTo(Coroutine & co) {
-#ifdef WIN32
+#ifndef USE_FCONTEXT
 		SwitchToFiber(co._ctx);
 #else
 #endif
 	}
 
 	void Coroutine::SwapOut() {
-#ifdef WIN32
+#ifndef USE_FCONTEXT
 		SwitchToFiber(GetTlsContext());
 #else
 #endif

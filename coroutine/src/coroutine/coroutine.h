@@ -1,6 +1,10 @@
 #ifndef __COROUTINE_H__
 #define __COROUTINE_H__
 #include "util.h"
+#ifdef USE_FCONTEXT
+#include <boost/context/detail/fcontext.hpp>
+using boost::context::detail::fcontext_t;
+#endif
 
 namespace hyper_net {
 	enum class CoroutineState {
@@ -9,7 +13,7 @@ namespace hyper_net {
 		CS_DONE,
 	};
 
-#ifdef WIN32
+#ifndef USE_FCONTEXT
 	typedef void * fcontext_t;
 #else
 #endif
@@ -45,10 +49,8 @@ namespace hyper_net {
 		}
 
 		inline static void SetupTlsContext() {
-#ifdef WIN32
+#ifndef USE_FCONTEXT
 			GetTlsContext() = ConvertThreadToFiberEx(NULL, FIBER_FLAG_FLOAT_SWITCH);
-#else
-
 #endif
 		}
 

@@ -136,7 +136,7 @@ namespace olib {
 		*/
 		template <typename F>
 		void Sweep(F&& func) {
-			while (sweepOnce(func)) {
+			while (SweepOnce(func)) {
 			}
 		}
 
