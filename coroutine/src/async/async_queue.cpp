@@ -12,7 +12,7 @@ namespace hyper_net {
 			Scheduler::Instance().AddCoroutine(co);
 		};
 
-		while (_terminate) {
+		while (!_terminate) {
 			_waitQueue.SweepOnce(sweepFn);
 
 			std::this_thread::sleep_for(std::chrono::microseconds(1000));
@@ -34,6 +34,7 @@ namespace hyper_net {
 		for (int32_t i = 0; i < threadCount; ++i) {
 			AsyncWorker * worker = new AsyncWorker(complete, _fn);
 			_workers.push_back(worker);
+			worker->Start();
 		}
 	}
 
@@ -63,6 +64,8 @@ namespace hyper_net {
 
 		for (auto * worker : _workers)
 			worker->Join();
+
+		delete this;
 	}
 
 	IAsyncQueue * CreateAsyncQueue(int32_t threadCount, bool complete, const std::function<void(void * data)>& f) {

@@ -1,7 +1,21 @@
 #include "hnet.h"
 #include <thread>
 
+void test_async() {
+	auto * queue = hn_create_async(1, false, [](void* data) {
+		*static_cast<int32_t*>(data) = 1;
+		std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+	});
+
+	hn_fork[queue]{
+		int32_t a = 0;
+		queue->Call(0, &a);
+		printf("a is %d\n", a);
+	};
+}
+
 void start(int32_t argc, char ** argv) {
+	test_async();
 	hn_mutex lock;
 	hn_ticker ticker(2000);
 	hn_fork [&ticker, &lock]{

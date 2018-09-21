@@ -16,15 +16,17 @@ namespace hyper_net {
 
 		class AsyncWorker {
 		public:
-			AsyncWorker(bool complete, const std::function<void(void * data)>& f) : _complete(complete), _fn(f) {
-				_t = std::thread(&AsyncWorker::ThreadProc, this);
-			}
-
+			AsyncWorker(bool complete, const std::function<void(void * data)>& f) : _complete(complete), _fn(f) {}
 			~AsyncWorker() {}
 
 			inline void Add(Coroutine * co, void * data) { _waitQueue.InsertHead(new Job{ co, data }); }
 			void ThreadProc();
 
+			inline void Start() {
+				_t = std::thread([this] {
+					ThreadProc();
+				});
+			}
 			inline void Stop() { _terminate = true; }
 			inline void Join() { _t.join(); }
 
