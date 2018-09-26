@@ -18,7 +18,7 @@ void start(int32_t argc, char ** argv) {
 	test_async();
 	hn_mutex lock;
 	hn_ticker ticker(2000);
-	hn_fork [&ticker, &lock]{
+	hn_fork hn_stack(1024 * 1024) [&ticker, &lock]{
 		hn_sleep 2000;
 		lock.lock();
 		lock.unlock();
@@ -57,4 +57,6 @@ void start(int32_t argc, char ** argv) {
 	lock.unlock();
 	hn_sleep 30000;
 	ticker.Stop();
+
+	hn_sleep 30000;
 }

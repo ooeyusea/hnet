@@ -4,6 +4,7 @@
 #include "processer.h"
 #include "hnet.h"
 #include "timer.h"
+#include "net.h"
 
 extern void start(int32_t argc, char ** argv);
 
@@ -21,6 +22,8 @@ namespace hyper_net {
 
 	int32_t Scheduler::Start(int32_t argc, char ** argv) {
 		Options::Instance().Setup(argc, argv);
+		NetEngine::Instance();
+
 		_maxProcesser = Options::Instance().GetMaxProcesser();
 		_minProcesser = Options::Instance().GetMinProcesser();
 		_processers.reserve(_maxProcesser);
@@ -191,8 +194,8 @@ namespace hyper_net {
 		}
 	}
 
-	void Scheduler::AddCoroutine(const std::function<void()> f) {
-		AddCoroutine(new Coroutine(f));
+	void Scheduler::AddCoroutine(const std::function<void()> f, int32_t stackSize) {
+		AddCoroutine(new Coroutine(f, stackSize));
 		_coroutineCount.fetch_add(1);
 	}
 

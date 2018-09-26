@@ -8,9 +8,14 @@ namespace hyper_net {
 		_inQueue = false;
 	}
 
-	Coroutine::Coroutine(const CoFuncType& f) {
+	Coroutine::Coroutine(const CoFuncType& f, int32_t stackSize) {
 		_fn = f;
+#ifndef USE_FCONTEXT
 		_ctx = CreateFiberEx(0, 0, FIBER_FLAG_FLOAT_SWITCH, Coroutine::CoroutineProc, this);
+#else
+		_p = malloc(stackSize);
+		_ctx = make_fcontext((char*)_p + stackSize, stackSize, Coroutine::CoroutineProc);
+#endif
 		_status = CoroutineState::CS_RUNNABLE;
 		_processer = nullptr;
 		_inQueue = false;
@@ -18,7 +23,11 @@ namespace hyper_net {
 
 	Coroutine::Coroutine(Coroutine&& rhs) {
 		if (_ctx) {
+#ifndef USE_FCONTEXT
 			DeleteFiber(_ctx);
+#else
+			free(_p);
+#endif
 			_ctx = nullptr;
 		}
 
@@ -29,14 +38,23 @@ namespace hyper_net {
 	}
 
 	Coroutine::~Coroutine() {
-		if (_ctx)
+		if (_ctx) {
+#ifndef USE_FCONTEXT
 			DeleteFiber(_ctx);
+#else
+			free(_p);
+#endif
+		}
 		_ctx = nullptr;
 	}
 
 	Coroutine& Coroutine::operator=(Coroutine&& rhs) {
 		if (_ctx) {
+#ifndef USE_FCONTEXT
 			DeleteFiber(_ctx);
+#else
+			free(_p);
+#endif
 			_ctx = nullptr;
 		}
 
@@ -65,7 +83,7 @@ namespace hyper_net {
 #ifndef USE_FCONTEXT
 		SwitchToFiber(_ctx);
 #else
-		jump_fcontext(&GetTlsContext(), _ctx, vp_);
+		jump_fcontext(&GetTlsContext(), _ctx, (intptr_t)this);
 #endif
 	}
 
@@ -73,6 +91,7 @@ namespace hyper_net {
 #ifndef USE_FCONTEXT
 		SwitchToFiber(co._ctx);
 #else
+		jump_fcontext(&_ctx, co._ctx, (intptr_t)&co);
 #endif
 	}
 
@@ -80,10 +99,17 @@ namespace hyper_net {
 #ifndef USE_FCONTEXT
 		SwitchToFiber(GetTlsContext());
 #else
+		jump_fcontext(&_ctx, GetTlsContext(), (intptr_t)nullptr);
 #endif
 	}
 
+#ifndef USE_FCONTEXT
 	void Coroutine::CoroutineProc(void * p) {
 		((Coroutine*)p)->Run();
 	}
+#else 
+	void Coroutine::CoroutineProc(intptr_t p) {
+		((Coroutine*)p)->Run();
+}
+#endif
 }

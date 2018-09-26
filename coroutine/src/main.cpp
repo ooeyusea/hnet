@@ -8,7 +8,12 @@
 
 namespace hyper_net {
 	Forker& Forker::operator-(const std::function<void()>& f) {
-		hyper_net::Scheduler::Instance().AddCoroutine(f);
+		hyper_net::Scheduler::Instance().AddCoroutine(f, stackSize);
+		return *this;
+	}
+
+	Forker& Forker::operator-(int32_t size) {
+		stackSize = size;
 		return *this;
 	}
 

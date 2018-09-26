@@ -32,7 +32,7 @@ namespace hyper_net {
 		void AddNewProcesser();
 		void DispatchThread();
 		
-		void AddCoroutine(const std::function<void()> f);
+		void AddCoroutine(const std::function<void()> f, int32_t stackSize);
 		void AddCoroutine(Coroutine * co);
 
 		inline void DecCoroutineCount() { _coroutineCount.fetch_sub(1); }

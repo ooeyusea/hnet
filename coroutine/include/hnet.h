@@ -12,9 +12,14 @@ typedef SOCKET sock_t;
 typedef int32_t sock_t;
 #endif
 
+#define DEFAULT_STACK_SIZE 64 * 1024
+
 namespace hyper_net {
 	struct Forker {
 		Forker& operator-(const std::function<void()>& f);
+		Forker& operator-(int32_t size);
+
+		int32_t stackSize = DEFAULT_STACK_SIZE;
 	};
 
 	struct Yielder {
@@ -112,6 +117,7 @@ namespace hyper_net {
 }
 
 #define hn_fork hyper_net::Forker()-
+#define hn_stack(size) (size)-
 #define hn_yield hyper_net::Yielder().Do()
 
 #define hn_connect(ip, port) hyper_net::NetAdapter().Connect(ip, port)

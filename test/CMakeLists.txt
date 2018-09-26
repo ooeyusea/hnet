@@ -33,6 +33,10 @@ INCLUDE_DIRECTORIES(
     "${PROJECT_SOURCE_DIR}/../coroutine/include"
 )
 
+LINK_DIRECTORIES(
+	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/lib"
+)
+
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
 )

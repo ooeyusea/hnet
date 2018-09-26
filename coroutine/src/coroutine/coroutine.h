@@ -2,8 +2,8 @@
 #define __COROUTINE_H__
 #include "util.h"
 #ifdef USE_FCONTEXT
-#include <boost/context/detail/fcontext.hpp>
-using boost::context::detail::fcontext_t;
+#include <boost/context/all.hpp>
+using namespace boost::context;
 #endif
 
 namespace hyper_net {
@@ -30,7 +30,7 @@ namespace hyper_net {
 
 	public:
 		Coroutine();
-		Coroutine(const CoFuncType& f);
+		Coroutine(const CoFuncType& f, int32_t stackSize);
 		Coroutine(Coroutine&& rhs);
 		~Coroutine();
 
@@ -41,7 +41,11 @@ namespace hyper_net {
 		void SwapTo(Coroutine & co);
 		void SwapOut();
 
+#ifndef USE_FCONTEXT
 		static void CoroutineProc(void * p);
+#else
+		static void CoroutineProc(intptr_t p);
+#endif
 
 		inline static fcontext_t& GetTlsContext() {
 			static thread_local fcontext_t tls_context;
