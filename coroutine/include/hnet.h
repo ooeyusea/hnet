@@ -1,16 +1,6 @@
 #ifndef __HNET_H__
 #define __HNET_H__
 #include <functional>
-#ifdef WIN32
-#ifndef _WINSOCK2API_
-#include <WinSock2.h>
-#else
-#include <Windows.h>
-#endif
-typedef SOCKET sock_t;
-#else
-typedef int32_t sock_t;
-#endif
 
 #define DEFAULT_STACK_SIZE 64 * 1024
 
@@ -28,8 +18,8 @@ namespace hyper_net {
 
 	struct NetAdapter {
 		int32_t Connect(const char * ip, const int32_t port);
-		sock_t Listen(const char * ip, const int32_t port);
-		int32_t Accept(sock_t fd);
+		int32_t Listen(const char * ip, const int32_t port);
+		int32_t Accept(int32_t fd);
 		int32_t Recv(int32_t fd, char * buf, int32_t size);
 		void Send(int32_t fd, const char * buf, int32_t size);
 		void Close(int32_t fd);

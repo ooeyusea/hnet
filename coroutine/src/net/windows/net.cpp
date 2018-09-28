@@ -6,6 +6,7 @@
 
 #define NET_INIT_FRAME 1024
 #define MAX_NET_THREAD 4
+#define BACKLOG 128
 
 LPFN_ACCEPTEX GetAcceptExFunc() {
 	GUID acceptExGuild = WSAID_ACCEPTEX;
@@ -84,7 +85,7 @@ namespace hyper_net {
 		WSACleanup();
 	}
 
-	socket_t NetEngine::Listen(const char * ip, const int32_t port) {
+	int32_t NetEngine::Listen(const char * ip, const int32_t port) {
 		socket_t sock = INVALID_SOCKET;
 		if (INVALID_SOCKET == (sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
 			return -1;
@@ -113,7 +114,28 @@ namespace hyper_net {
 			return -1;
 		}
 
-		return sock;
+		int32_t fd = Apply(sock, true);
+		if (fd < 0) {
+			closesocket(sock);
+			return -1;
+		}
+
+		for (int32_t i = 0; i < BACKLOG; ++i) {
+			IocpAcceptor * acceptor = new IocpAcceptor;
+
+			SafeMemset(&acceptor->accept, sizeof(acceptor->accept), 0, sizeof(acceptor->accept));
+			acceptor->accept.opt = IOCP_OPT_ACCEPT;
+			acceptor->accept.sock = sock;
+			acceptor->accept.code = 0;
+			acceptor->accept.socket = fd;
+
+			if (!DoAccept(acceptor)) {
+				Shutdown(fd);
+				return -1;
+			}
+		}
+
+		return fd;
 	}
 
 	int32_t NetEngine::Connect(const char * ip, const int32_t port) {
@@ -186,63 +208,42 @@ namespace hyper_net {
 		return fd;
 	}
 
-	int32_t NetEngine::Accept(socket_t sock) {
+	int32_t NetEngine::Accept(int32_t fd) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
-		IocpAcceptor * acceptor = new IocpAcceptor;
-		acceptor->co = co;
+		while (true) {
+			Socket& sock = _sockets[fd & MAX_SOCKET];
+			std::unique_lock<spin_mutex> guard(sock.lock);
+			if (sock.fd == fd && sock.acceptor) {
+				if (!sock.accepts.empty()) {
+					int32_t coming = sock.accepts.front();
+					sock.accepts.pop_back();
+					guard.unlock();
 
-		SafeMemset(&acceptor->accept, sizeof(acceptor->accept), 0, sizeof(acceptor->accept));
-		acceptor->accept.opt = IOCP_OPT_ACCEPT;
-		acceptor->accept.sock = sock;
-		acceptor->accept.code = 0;
+					int32_t comingFd = Apply(coming);
+					if (comingFd < 0) {
+						closesocket(coming);
+						return -1;
+					}
 
-		acceptor->sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
-		if (acceptor->sock == INVALID_SOCKET) {
-			OASSERT(false, "do accept failed %d", WSAGetLastError());
-			delete acceptor;
-			return -1;
+					return comingFd;
+				}
+				else {
+					sock.waitAcceptCo.push_back(co);
+					co->SetStatus(CoroutineState::CS_BLOCK);
+					guard.unlock();
+
+					hn_yield;
+				}
+			}
+			else {
+				guard.unlock();
+				return -1;
+			}
 		}
 
-		DWORD bytes = 0;
-		int32_t res = g_accept(sock,
-			acceptor->sock,
-			acceptor->buf,
-			0,
-			sizeof(sockaddr_in) + 16,
-			sizeof(sockaddr_in) + 16,
-			&bytes,
-			(LPOVERLAPPED)&acceptor->accept
-		);
-
-		int32_t errCode = WSAGetLastError();
-		if (!res && errCode != WSA_IO_PENDING) {
-			OASSERT(false, "do accept failed %d", errCode);
-			closesocket(acceptor->sock);
-			delete acceptor;
-			return -1;
-		}
-
-		co->SetTemp(&acceptor->sock);
-		co->SetStatus(CoroutineState::CS_BLOCK);
-
-		hn_yield;
-
-		if (acceptor->sock == INVALID_SOCKET) {
-			delete acceptor;
-			return -1;
-		}
-
-		int32_t fd = Apply(acceptor->sock);
-		if (fd < 0) {
-			closesocket(acceptor->sock);
-			delete acceptor;
-			return -1;
-		}
-
-		delete acceptor;
-		return fd;
+		return -1;
 	}
 
 	void NetEngine::Send(int32_t fd, const char * buf, int32_t size) {
@@ -256,7 +257,7 @@ namespace hyper_net {
 
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
-		if (sock.fd == fd && !sock.closing && !sock.closed) {
+		if (sock.fd == fd && !sock.acceptor && !sock.closing && !sock.closed) {
 			frame->next = sock.sendChain;
 			sock.sendChain = frame;
 			sock.sendChainSize += frame->size;
@@ -278,7 +279,7 @@ namespace hyper_net {
 		while (true) {
 			Socket& sock = _sockets[fd & MAX_SOCKET];
 			std::unique_lock<spin_mutex> guard(sock.lock);
-			if (sock.fd == fd && (sock.readingCo == nullptr || sock.readingCo == co) && !sock.closing && !sock.closed) {
+			if (sock.fd == fd && !sock.acceptor && (sock.readingCo == nullptr || sock.readingCo == co) && !sock.closing && !sock.closed) {
 				if (sock.recvSize > 0) {
 					int32_t len = size > sock.recvSize ? sock.recvSize : size;
 					SafeMemcpy(buf, size, sock.recvBuf, len);
@@ -314,26 +315,34 @@ namespace hyper_net {
 	void NetEngine::Shutdown(int32_t fd) {
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
-		if (sock.fd == fd && !sock.closed) {
-			closesocket(sock.sock);
-			sock.closed = true;
+		if (sock.fd == fd) {
+			if (!sock.acceptor) {
+				if (!sock.closed) {
+					closesocket(sock.sock);
+					sock.closed = true;
+				}
+			}
+			else
+				ShutdownListener(guard, sock);
 		}
 	}
 
 	void NetEngine::Close(int32_t fd) {
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
-		if (sock.fd == fd && !sock.closing && !sock.closed) {
-			sock.closing = true;
-			if (!sock.sending) {
-				closesocket(sock.sock);
-				sock.closed = true;
+		if (sock.fd == fd) {
+			if (!sock.acceptor) {
+				if (!sock.closing && !sock.closed) {
+					sock.closing = true;
+					if (!sock.sending) {
+						closesocket(sock.sock);
+						sock.closed = true;
+					}
+				}
 			}
+			else
+				ShutdownListener(guard, sock);
 		}
-	}
-
-	void NetEngine::ShutdownListener(socket_t sock) {
-		closesocket(sock);
 	}
 
 	void NetEngine::ThreadProc() {
@@ -385,7 +394,32 @@ namespace hyper_net {
 			}
 		}
 
-		Scheduler::Instance().AddCoroutine(evt->co);
+		int32_t fd = evt->accept.socket;
+		socket_t sock = evt->sock;
+		if (sock != INVALID_SOCKET) {
+			Socket& acceptSock = _sockets[fd & MAX_SOCKET];
+			std::unique_lock<spin_mutex> guard(acceptSock.lock);
+			if (acceptSock.fd == fd) {
+				acceptSock.accepts.push_back(sock);
+				
+				if (!acceptSock.waitAcceptCo.empty()) {
+					Coroutine * co = acceptSock.waitAcceptCo.front();
+					acceptSock.waitAcceptCo.pop_front();
+					guard.unlock();
+
+					Scheduler::Instance().AddCoroutine(co);
+				}
+			}
+			else {
+				guard.unlock();
+
+				delete evt;
+				return;
+			}
+		}
+
+		if (!DoAccept(evt))
+			Shutdown(fd);
 	}
 
 	void NetEngine::DealConnect(IocpConnector * evt) {
@@ -536,6 +570,36 @@ namespace hyper_net {
 		return true;
 	}
 
+	bool NetEngine::DoAccept(IocpAcceptor * acceptor) {
+		acceptor->sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
+		if (acceptor->sock == INVALID_SOCKET) {
+			OASSERT(false, "do accept failed %d", WSAGetLastError());
+			delete acceptor;
+			return false;
+		}
+
+		DWORD bytes = 0;
+		int32_t res = g_accept(acceptor->accept.sock,
+			acceptor->sock,
+			acceptor->buf,
+			0,
+			sizeof(sockaddr_in) + 16,
+			sizeof(sockaddr_in) + 16,
+			&bytes,
+			(LPOVERLAPPED)&acceptor->accept
+		);
+
+		int32_t errCode = WSAGetLastError();
+		if (!res && errCode != WSA_IO_PENDING) {
+			OASSERT(false, "do accept failed %d", errCode);
+			closesocket(acceptor->sock);
+			delete acceptor;
+			return false;
+		}
+
+		return true;
+	}
+
 	IocpEvent * NetEngine::GetQueueState(HANDLE completionPort) {
 		DWORD bytes = 0;
 		socket_t socket = INVALID_SOCKET;
@@ -556,7 +620,7 @@ namespace hyper_net {
 		return evt;
 	}
 
-	int32_t NetEngine::Apply(socket_t s) {
+	int32_t NetEngine::Apply(socket_t s, bool acceptor) {
 		int32_t count = MAX_SOCKET;
 		while (count--) {
 			int32_t fd = _nextFd;
@@ -571,8 +635,7 @@ namespace hyper_net {
 				if (sock.fd == 0) {
 					sock.fd = fd;
 					sock.sock = s;
-
-					guard.unlock();
+					sock.acceptor = acceptor;
 
 					sock.recving = false;
 					sock.recvBuf = (char *)malloc(NET_INIT_FRAME);
@@ -607,4 +670,22 @@ namespace hyper_net {
 		}
 		return -1;
 	}
+
+	void NetEngine::ShutdownListener(std::unique_lock<spin_mutex>& guard, Socket& sock) {
+		closesocket(sock.sock);
+		sock.fd = 0;
+		sock.sock = INVALID_SOCKET;
+
+
+		auto tmp = std::move(sock.waitAcceptCo);
+		auto accepts = std::move(sock.accepts);
+		guard.unlock();
+
+		for (auto ac : accepts)
+			closesocket(ac);
+
+		for (auto * co : tmp)
+			Scheduler::Instance().AddCoroutine(co);
+	}
+
 }

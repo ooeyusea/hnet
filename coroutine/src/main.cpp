@@ -25,11 +25,11 @@ namespace hyper_net {
 		return NetEngine::Instance().Connect(ip, port);
 	}
 
-	sock_t NetAdapter::Listen(const char * ip, const int32_t port) {
+	int32_t NetAdapter::Listen(const char * ip, const int32_t port) {
 		return NetEngine::Instance().Listen(ip, port);
 	}
 
-	int32_t NetAdapter::Accept(sock_t fd) {
+	int32_t NetAdapter::Accept(int32_t fd) {
 		return NetEngine::Instance().Accept(fd);
 	}
 

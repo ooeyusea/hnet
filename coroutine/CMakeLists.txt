@@ -96,6 +96,12 @@ SET(NET_IO
 )
 ENDIF(WIN32)
 
+IF(UNIX)
+SET(NET_IO
+    "${PROJECT_SOURCE_DIR}/src/net/linux/net.cpp"
+)
+ENDIF(UNIX)
+
 SET(PUBLIC
     "${PROJECT_SOURCE_DIR}/src/public/util.h"
 	"${PROJECT_SOURCE_DIR}/src/public/util.cpp"
