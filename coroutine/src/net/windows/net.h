@@ -4,18 +4,12 @@
 #include "spin_mutex.h"
 
 #define MAX_SOCKET 0xFFFF
-#define MAX_ACCEPTOR 0xFFFF
 
-#ifdef WIN32
 typedef SOCKET socket_t;
-#else
-typedef int32_t socket_t;
-#endif
 
 namespace hyper_net {
 	class Coroutine;
 
-#ifdef WIN32
 	enum {
 		IOCP_OPT_CONNECT = 0,
 		IOCP_OPT_ACCEPT,
@@ -44,36 +38,6 @@ namespace hyper_net {
 		socket_t sock;
 		char buf[128];
 	};
-#else
-	enum {
-		EPOLL_OPT_CONNECT = 0,
-		EPOLL_OPT_ACCEPT
-		EPOLL_OPT_IO
-	};
-
-	struct EpollEvent {
-		int8_t opt;
-
-		sock_t sock;
-		int32_t fd;
-	};
-
-	struct EpollConnector {
-		EpollEvent connect;
-
-		Coroutine* co;
-	};
-
-	struct EpollAcceptor {
-		spin_mutex lock;
-
-		int32_t fd;
-		socket_t sock;
-
-		bool comming;
-		std::list<Coroutine *> waitQueue;
-	};
-#endif
 
 	class NetEngine {
 		struct NetBuffer {
@@ -84,30 +48,29 @@ namespace hyper_net {
 
 		struct Socket {
 			spin_mutex lock;
-			bool acceptor;
+			bool acceptor = false;
 
-			int32_t fd;
-			socket_t sock;
+			int32_t fd = 0;
+			socket_t sock = INVALID_SOCKET;
 
 			bool recving;
-			char * recvBuf;
+			char * recvBuf = nullptr;
 			int32_t recvSize;
 			int32_t recvMaxSize;
-			Coroutine * readingCo;
+			Coroutine * readingCo = nullptr;
 
 			bool sending;
-			char * sendBuf;
+			char * sendBuf = nullptr;
 			int32_t sendSize;
 			int32_t sendMaxSize;
-			NetBuffer * sendChain;
+			NetBuffer * sendChain = nullptr;
 			int32_t sendChainSize;
 
 			bool closing;
 			bool closed;
-#ifdef WIN32
+
 			IocpEvent evtRecv;
 			IocpEvent evtSend;
-#endif
 
 			std::list<socket_t> accepts;
 			std::list<Coroutine*> waitAcceptCo;
@@ -132,7 +95,6 @@ namespace hyper_net {
 
 		void ThreadProc();
 
-#ifdef WIN32
 		bool DoSend(Socket & sock);
 		bool DoRecv(Socket & sock, int32_t size);
 		bool DoAccept(IocpAcceptor * evt);
@@ -142,7 +104,6 @@ namespace hyper_net {
 		void DealConnect(IocpConnector * evt);
 		void DealSend(IocpEvent * evt);
 		void DealRecv(IocpEvent * evt);
-#endif
 
 	private:
 		NetEngine();
@@ -156,12 +117,7 @@ namespace hyper_net {
 
 		bool _terminate;
 
-#ifdef WIN32
 		HANDLE _completionPort;
-#else
-		EpollAcceptor _acceptor[MAX_ACCEPTOR + 1];
-		int32_t _nextAcceptFd;
-#endif
 	};
 }
 

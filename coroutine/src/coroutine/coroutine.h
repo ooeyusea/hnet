@@ -15,7 +15,6 @@ namespace hyper_net {
 
 #ifndef USE_FCONTEXT
 	typedef void * fcontext_t;
-#else
 #endif
 
 	typedef std::function<void()> CoFuncType;

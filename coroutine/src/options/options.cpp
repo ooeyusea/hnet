@@ -7,5 +7,7 @@ namespace hyper_net {
 
 		_cycleTimeout = 10 * 1000;
 		_dispatchThreadCycle = 1000;
+
+		_epollEventSize = 512;
 	}
 }

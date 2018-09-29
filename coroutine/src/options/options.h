@@ -18,6 +18,8 @@ namespace hyper_net {
 		inline int64_t GetCycleTimeOut() const { return _cycleTimeout; }
 		inline int64_t GetDispatchThreadCycle() const { return _dispatchThreadCycle; }
 
+		inline int32_t GetEpollEventSize() const { return _epollEventSize; }
+
 	private:
 		Options() {}
 		~Options() {}
@@ -27,6 +29,8 @@ namespace hyper_net {
 
 		int64_t _cycleTimeout;
 		int64_t _dispatchThreadCycle;
+
+		int32_t _epollEventSize;
 	};
 }
 

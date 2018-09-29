@@ -626,7 +626,7 @@ namespace hyper_net {
 			int32_t fd = _nextFd;
 
 			_nextFd++;
-			if (_nextFd < 0)
+			if (_nextFd <= 0)
 				_nextFd = 1;
 
 			Socket& sock = _sockets[fd & MAX_SOCKET];

@@ -42,6 +42,8 @@ void __OAssert(const char * file, int32_t line, const char * funname, const char
     SafeSprintf(debug, sizeof(debug), format, ##__VA_ARGS__); \
     ((p) ? (void)0 : (void)__OAssert(__FILE__, __LINE__, __FUNCTION__, debug)); \
 }
+#else
+#define OASSERT(p, format, ...)
 #endif
 
 #ifdef WIN32

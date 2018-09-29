@@ -47,8 +47,17 @@ ADD_EXECUTABLE(Test
 	${SRC}
 )
 
+IF(WIN32)
 TARGET_LINK_LIBRARIES(Test
 	"${PROJECT_SOURCE_DIR}/../bin/$<CONFIGURATION>/hnet.lib"
 )
+ENDIF(WIN32)
+
+IF(UNIX)
+TARGET_LINK_LIBRARIES(Test
+	"${PROJECT_SOURCE_DIR}/../bin/$<CONFIGURATION>/libhnet.a"
+	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/lib/libboost_context.a"
+)
+ENDIF(UNIX)
 
 SET(LIBRARY_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/../bin")

@@ -1,5 +1,6 @@
 #include "hnet.h"
 #include <thread>
+#include <string.h>
 
 void test_async() {
 	hn_fork[]{

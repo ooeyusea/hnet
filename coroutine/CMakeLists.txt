@@ -6,10 +6,10 @@ cmake_minimum_required(VERSION 2.8)
 PROJECT(coroutine)
 IF(UNIX)
     SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
-    SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./")
-    SET(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -DUSE_FCONTEXT -O0 -pg")
-    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -DNDEBUG -DUSE_FCONTEXT -O2")
-	SET(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -DUSE_FCONTEXT -O3")
+    SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./ -DUSE_FCONTEXT")
+    SET(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -O0 -pg")
+    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -DNDEBUG -O2")
+	SET(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
     MESSAGE(STATUS "Linux")
 ENDIF(UNIX)
 
@@ -55,6 +55,12 @@ INCLUDE_DIRECTORIES(
 )
 ENDIF(WIN32)
 
+IF(UNIX)
+INCLUDE_DIRECTORIES(
+	"${PROJECT_SOURCE_DIR}/src/net/linux"
+)
+ENDIF(UNIX)
+
 SET(SRC
     "${PROJECT_SOURCE_DIR}/include/hnet.h"
 	"${PROJECT_SOURCE_DIR}/src/main.cpp"
@@ -86,18 +92,16 @@ SET(ASYNC
 	"${PROJECT_SOURCE_DIR}/src/async/async_queue.cpp"
 )
 
-SET(NET
-    "${PROJECT_SOURCE_DIR}/src/net/net.h"
-)
-
 IF(WIN32)
-SET(NET_IO
+SET(NET
+	"${PROJECT_SOURCE_DIR}/src/net/windows/net.h"
     "${PROJECT_SOURCE_DIR}/src/net/windows/net.cpp"
 )
 ENDIF(WIN32)
 
 IF(UNIX)
-SET(NET_IO
+SET(NET
+	"${PROJECT_SOURCE_DIR}/src/net/linux/net.h"
     "${PROJECT_SOURCE_DIR}/src/net/linux/net.cpp"
 )
 ENDIF(UNIX)
@@ -117,9 +121,6 @@ SOURCE_GROUP(public FILES ${PUBLIC})
 SOURCE_GROUP(coroutine FILES ${COROUTINE})
 SOURCE_GROUP(options FILES ${OPTIONS})
 SOURCE_GROUP(net FILES ${NET})
-IF(WIN32)
-SOURCE_GROUP(net\\windows FILES ${NET_IO})
-ENDIF(WIN32)
 SOURCE_GROUP(timer FILES ${TIMER})
 SOURCE_GROUP(comutex FILES ${COMUTEX})
 SOURCE_GROUP(async FILES ${ASYNC})
@@ -129,7 +130,6 @@ ADD_LIBRARY(hnet STATIC
 	${SRC}
 	${COROUTINE}
 	${NET}
-	${NET_IO}
 	${TIMER}
 	${COMUTEX}
 	${ASYNC}
