@@ -18,7 +18,7 @@ namespace hyper_net {
 			_workers.push_back(worker);
 
 			worker->epollFd = epoll_create(1024);
-			OASSERT(fd > 0, "create epoll failed");
+			OASSERT(worker->epollFd > 0, "create epoll failed");
 
 			std::thread([this, worker]() {
 				ThreadProc(*worker);
@@ -245,6 +245,8 @@ namespace hyper_net {
 						}
 						break;
 					}
+					else
+						offset += len;
 				}
 			}
 		}
@@ -264,6 +266,7 @@ namespace hyper_net {
 						co->SetStatus(CoroutineState::CS_BLOCK);
 						sock.readingCo = co;
 
+						guard.unlock();
 						hn_yield;
 					}
 					else {
@@ -449,9 +452,9 @@ namespace hyper_net {
 		if (worker) {
 			int32_t flag = EPOLLERR | EPOLLHUP | EPOLLRDHUP | EPOLLET;
 			switch (evt->opt) {
-			case EPOLL_OPT_ACCEPT: flag &= EPOLLIN; break;
-			case EPOLL_OPT_CONNECT: flag &= EPOLLOUT; break;
-			case EPOLL_OPT_IO: flag &= EPOLLIN | EPOLLOUT; break;
+			case EPOLL_OPT_ACCEPT: flag |= EPOLLIN; break;
+			case EPOLL_OPT_CONNECT: flag |= EPOLLOUT; break;
+			case EPOLL_OPT_IO: flag |= EPOLLIN | EPOLLOUT; break;
 			}
 
 			struct epoll_event ev;

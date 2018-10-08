@@ -83,6 +83,19 @@ void test_mutex() {
 	lock.unlock();
 }
 
+void test_active() {
+	bool terminate = false;
+	while (!terminate) {
+		hn_wait 1;
+		printf("active start in 1 min\n");
+		hn_wait 2;
+		printf("active started");
+
+
+	}
+}
+
 void start(int32_t argc, char ** argv) {
 	test_net();
+	test_async();
 }
