@@ -335,7 +335,7 @@ namespace hyper_net {
 				for (int32_t i = 0; i < count; ++i) {
 					EpollEvent * evt = (EpollEvent *) evs[i].data.ptr;
 					switch (evt->opt) {
-					case EPOLL_OPT_CONNECT: DealConnect(evt, evs[i].events); break;
+					case EPOLL_OPT_CONNECT: DealConnect(evt, evs[i].events, worker.epollFd); break;
 					case EPOLL_OPT_ACCEPT: DealAccept(evt, evs[i].events); break;
 					case EPOLL_OPT_IO: DealIO(evt, evs[i].events); break;
 					}
@@ -347,14 +347,18 @@ namespace hyper_net {
 		}
 	}
 
-	void NetEngine::DealConnect(EpollEvent * evt, int32_t flag) {
+	void NetEngine::DealConnect(EpollEvent * evt, int32_t flag, int32_t epollFd) {
 		EpollConnector * connector = (EpollConnector*)evt;
 		if (flag & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+			epoll_ctl(epollFd, EPOLL_CTL_DEL, connector->connect.sock, nullptr);
+
 			int32_t& error = *(int32_t*)connector->co->GetTemp();
 			error = -1;
 			Scheduler::Instance().AddCoroutine(connector->co);
 		}
 		else if (flag & EPOLLOUT) {
+			epoll_ctl(epollFd, EPOLL_CTL_DEL, connector->connect.sock, nullptr);
+
 			Scheduler::Instance().AddCoroutine(connector->co);
 		}
 	}

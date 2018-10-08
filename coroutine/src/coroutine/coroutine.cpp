@@ -1,40 +1,20 @@
 #include "coroutine.h"
 
 namespace hyper_net {
-	Coroutine::Coroutine() {
-		_ctx = nullptr;
-		_status = CoroutineState::CS_RUNNABLE;
-		_processer = nullptr;
-		_inQueue = false;
-	}
-
 	Coroutine::Coroutine(const CoFuncType& f, int32_t stackSize) {
 		_fn = f;
 #ifndef USE_FCONTEXT
 		_ctx = CreateFiberEx(0, 0, FIBER_FLAG_FLOAT_SWITCH, Coroutine::CoroutineProc, this);
 #else
 		_p = malloc(stackSize);
+		//printf("this:0x%x _p:0x%x stackSize:%d\n", (int64_t)this, (int64_t)_p, stackSize);
 		_ctx = make_fcontext((char*)_p + stackSize, stackSize, Coroutine::CoroutineProc);
 #endif
 		_status = CoroutineState::CS_RUNNABLE;
 		_processer = nullptr;
 		_inQueue = false;
-	}
 
-	Coroutine::Coroutine(Coroutine&& rhs) {
-		if (_ctx) {
-#ifndef USE_FCONTEXT
-			DeleteFiber(_ctx);
-#else
-			free(_p);
-#endif
-			_ctx = nullptr;
-		}
-
-		std::swap(_ctx, rhs._ctx);
-		std::swap(_status, rhs._status);
-		std::swap(_processer, rhs._processer);
-		std::swap(_inQueue, rhs._inQueue);
+		_temp = nullptr;
 	}
 
 	Coroutine::~Coroutine() {
@@ -42,27 +22,11 @@ namespace hyper_net {
 #ifndef USE_FCONTEXT
 			DeleteFiber(_ctx);
 #else
+			//printf("this:0x%x _p:0x%x\n", (int64_t)this, (int64_t)_p);
 			free(_p);
 #endif
 		}
 		_ctx = nullptr;
-	}
-
-	Coroutine& Coroutine::operator=(Coroutine&& rhs) {
-		if (_ctx) {
-#ifndef USE_FCONTEXT
-			DeleteFiber(_ctx);
-#else
-			free(_p);
-#endif
-			_ctx = nullptr;
-		}
-
-		std::swap(_ctx, rhs._ctx);
-		std::swap(_status, rhs._status);
-		std::swap(_processer, rhs._processer);
-		std::swap(_inQueue, rhs._inQueue);
-		return *this;
 	}
 
 	void Coroutine::Run() {

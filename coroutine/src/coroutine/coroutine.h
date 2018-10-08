@@ -28,12 +28,12 @@ namespace hyper_net {
 		Coroutine& operator=(const Coroutine&) = delete;
 
 	public:
-		Coroutine();
+		Coroutine() = delete;
 		Coroutine(const CoFuncType& f, int32_t stackSize);
-		Coroutine(Coroutine&& rhs);
+		Coroutine(Coroutine&& rhs) = delete;
 		~Coroutine();
 
-		Coroutine& operator=(Coroutine&& rhs);
+		Coroutine& operator=(Coroutine&& rhs) = delete;
 
 		void Run();
 		void SwapIn();
@@ -66,8 +66,8 @@ namespace hyper_net {
 		inline bool InQueue() const { return _inQueue; }
 		inline void SetQueue(bool val) { _inQueue = val; }
 
-		inline void * GetTemp() const { return _p; }
-		inline void SetTemp(void * p) { _p = p; }
+		inline void * GetTemp() const { return _temp; }
+		inline void SetTemp(void * p) { _temp = p; }
 
 	private:
 		CoFuncType _fn;
@@ -78,6 +78,7 @@ namespace hyper_net {
 		bool _inQueue;
 
 		void * _p;
+		void * _temp;
 	};
 }
 

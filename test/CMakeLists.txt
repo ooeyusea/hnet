@@ -55,7 +55,7 @@ ENDIF(WIN32)
 
 IF(UNIX)
 TARGET_LINK_LIBRARIES(Test
-	"${PROJECT_SOURCE_DIR}/../bin/$<CONFIGURATION>/libhnet.a"
+	"${PROJECT_SOURCE_DIR}/../bin/libhnet.a"
 	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/lib/libboost_context.a"
 )
 ENDIF(UNIX)
