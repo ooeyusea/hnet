@@ -423,6 +423,8 @@ namespace hyper_net {
 							}
 							break;
 						}
+						else
+							offset += len;
 					}
 				}
 			}
