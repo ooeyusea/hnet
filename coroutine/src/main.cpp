@@ -3,6 +3,8 @@
 #include "processer.h"
 #include "net.h"
 #include "timer.h"
+#include <sstream>
+#include <iomanip>
 
 #define MINUTE 60 * 1000
 
@@ -55,7 +57,7 @@ namespace hyper_net {
 
 	int32_t TimeAdapter::operator+(int64_t timestamp) {
 		while (true) {
-			int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 			if (now > timestamp) {
 				int64_t diff = now - timestamp;
 				if (diff > MINUTE)
@@ -67,6 +69,15 @@ namespace hyper_net {
 				break;
 		}
 		return 0;
+	}
+
+	int32_t TimeAdapter::operator+(const char * date) {
+		std::tm t = {};
+		std::istringstream ss(date);
+		ss >> std::get_time(&t, "%Y-%m-%d %H:%M:%S");
+
+		int64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::from_time_t(std::mktime(&t)).time_since_epoch()).count();
+		return operator+(timestamp);
 	}
 }
 

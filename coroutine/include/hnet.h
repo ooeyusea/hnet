@@ -29,6 +29,7 @@ namespace hyper_net {
 	struct TimeAdapter {
 		int32_t operator-(int64_t millisecond);
 		int32_t operator+(int64_t timestamp);
+		int32_t operator+(const char * date);
 	};
 
 	class CountTickerImpl;
