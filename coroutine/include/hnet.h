@@ -3,6 +3,8 @@
 #include <functional>
 
 #define DEFAULT_STACK_SIZE 64 * 1024
+#define HN_IPV4 0
+#define HN_IPV6 1
 
 namespace hyper_net {
 	struct Forker {
@@ -17,9 +19,9 @@ namespace hyper_net {
 	};
 
 	struct NetAdapter {
-		int32_t Connect(const char * ip, const int32_t port);
-		int32_t Listen(const char * ip, const int32_t port);
-		int32_t Accept(int32_t fd);
+		int32_t Connect(const char * ip, const int32_t port, int32_t proto = HN_IPV4);
+		int32_t Listen(const char * ip, const int32_t port, int32_t proto = HN_IPV4);
+		int32_t Accept(int32_t fd, char * remoteIp = nullptr, int32_t remoteIpSize = 0, int32_t * remotePort = nullptr);
 		int32_t Recv(int32_t fd, char * buf, int32_t size);
 		void Send(int32_t fd, const char * buf, int32_t size);
 		void Close(int32_t fd);

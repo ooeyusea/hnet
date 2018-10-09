@@ -23,16 +23,16 @@ namespace hyper_net {
 		Processer::StaticCoYield();
 	}
 
-	int32_t NetAdapter::Connect(const char * ip, const int32_t port) {
-		return NetEngine::Instance().Connect(ip, port);
+	int32_t NetAdapter::Connect(const char * ip, const int32_t port, int32_t proto) {
+		return NetEngine::Instance().Connect(ip, port, proto);
 	}
 
-	int32_t NetAdapter::Listen(const char * ip, const int32_t port) {
-		return NetEngine::Instance().Listen(ip, port);
+	int32_t NetAdapter::Listen(const char * ip, const int32_t port, int32_t proto) {
+		return NetEngine::Instance().Listen(ip, port, proto);
 	}
 
-	int32_t NetAdapter::Accept(int32_t fd) {
-		return NetEngine::Instance().Accept(fd);
+	int32_t NetAdapter::Accept(int32_t fd, char * remoteIp, int32_t remoteIpSize, int32_t * remotePort) {
+		return NetEngine::Instance().Accept(fd, remoteIp, remoteIpSize, remotePort);
 	}
 
 	int32_t NetAdapter::Recv(int32_t fd, char * buf, int32_t size) {

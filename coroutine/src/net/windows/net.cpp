@@ -3,6 +3,7 @@
 #include "hnet.h"
 #include <mswsock.h> 
 #include "scheduler.h"
+#include <ws2tcpip.h>
 
 #define NET_INIT_FRAME 1024
 #define MAX_NET_THREAD 4
@@ -85,23 +86,44 @@ namespace hyper_net {
 		WSACleanup();
 	}
 
-	int32_t NetEngine::Listen(const char * ip, const int32_t port) {
+	int32_t NetEngine::Listen(const char * ip, const int32_t port, int32_t proto) {
 		socket_t sock = INVALID_SOCKET;
-		if (INVALID_SOCKET == (sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
-			return -1;
-		}
+		if (proto == HN_IPV4) {
+			if (INVALID_SOCKET == (sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
+				return -1;
+			}
 
-		sockaddr_in addr;
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(port);
-		if ((addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) {
-			closesocket(sock);
-			return -1;
-		}
+			sockaddr_in addr;
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(port);
+			if ((addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) {
+				closesocket(sock);
+				return -1;
+			}
 
-		if (SOCKET_ERROR == bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in))) {
-			closesocket(sock);
-			return -1;
+			if (SOCKET_ERROR == bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in))) {
+				closesocket(sock);
+				return -1;
+			}
+		}
+		else {
+			if (INVALID_SOCKET == (sock = WSASocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
+				return -1;
+			}
+
+			sockaddr_in6 addr;
+			addr.sin6_family = AF_INET;
+			addr.sin6_port = htons(port);
+			
+			if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1) {
+				closesocket(sock);
+				return -1;
+			}
+
+			if (SOCKET_ERROR == bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in6))) {
+				closesocket(sock);
+				return -1;
+			}
 		}
 
 		if (listen(sock, 128) == SOCKET_ERROR) {
@@ -114,7 +136,7 @@ namespace hyper_net {
 			return -1;
 		}
 
-		int32_t fd = Apply(sock, true);
+		int32_t fd = Apply(sock, true, proto == HN_IPV6);
 		if (fd < 0) {
 			closesocket(sock);
 			return -1;
@@ -138,56 +160,95 @@ namespace hyper_net {
 		return fd;
 	}
 
-	int32_t NetEngine::Connect(const char * ip, const int32_t port) {
+	int32_t NetEngine::Connect(const char * ip, const int32_t port, int32_t proto) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
+		IocpConnector connector;
+		connector.co = co;
+
 		socket_t sock = INVALID_SOCKET;
-		if (INVALID_SOCKET == (sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
-			OASSERT(false, "Connect error %d", ::WSAGetLastError());
-			return -1;
+		if (proto == HN_IPV4) {
+			if (INVALID_SOCKET == (sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
+				OASSERT(false, "Connect error %d", ::WSAGetLastError());
+				return -1;
+			}
+
+			DWORD value = 0;
+			if (SOCKET_ERROR == ioctlsocket(sock, FIONBIO, &value)) {
+				closesocket(sock);
+				return -1;
+			}
+
+			const int8_t nodelay = 1;
+			setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
+
+			if (_completionPort != CreateIoCompletionPort((HANDLE)sock, _completionPort, sock, 0)) {
+				closesocket(sock);
+				return -1;
+			}
+
+			sockaddr_in remote;
+			SafeMemset(&remote, sizeof(remote), 0, sizeof(remote));
+
+			SafeMemset(&connector.connect, sizeof(connector.connect), 0, sizeof(connector.connect));
+			connector.connect.opt = IOCP_OPT_CONNECT;
+			connector.connect.sock = sock;
+			connector.connect.code = 0;
+
+			remote.sin_family = AF_INET;
+			if (SOCKET_ERROR == bind(sock, (sockaddr *)&remote, sizeof(sockaddr_in)))
+				return -1;
+
+			remote.sin_port = htons(port);
+			if ((remote.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE)
+				return -1;
+
+			BOOL res = g_connect(sock, (sockaddr *)&remote, sizeof(sockaddr_in), nullptr, 0, nullptr, (LPOVERLAPPED)&connector.connect);
+			int32_t errCode = WSAGetLastError();
+			if (!res && errCode != WSA_IO_PENDING)
+				return -1;
 		}
+		else {
+			if (INVALID_SOCKET == (sock = WSASocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
+				OASSERT(false, "Connect error %d", ::WSAGetLastError());
+				return -1;
+			}
 
-		DWORD value = 0;
-		if (SOCKET_ERROR == ioctlsocket(sock, FIONBIO, &value)) {
-			closesocket(sock);
-			return -1;
-		}
+			DWORD value = 0;
+			if (SOCKET_ERROR == ioctlsocket(sock, FIONBIO, &value)) {
+				closesocket(sock);
+				return -1;
+			}
 
-		const int8_t nodelay = 1;
-		setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
+			const int8_t nodelay = 1;
+			setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
 
-		if (_completionPort != CreateIoCompletionPort((HANDLE)sock, _completionPort, sock, 0)) {
-			closesocket(sock);
-			return -1;
-		}
+			if (_completionPort != CreateIoCompletionPort((HANDLE)sock, _completionPort, sock, 0)) {
+				closesocket(sock);
+				return -1;
+			}
 
-		IocpConnector * connector = new IocpConnector;
-		connector->co = co;
-		SafeMemset(&connector->remote, sizeof(connector->remote), 0, sizeof(connector->remote));
+			sockaddr_in6 remote;
+			SafeMemset(&remote, sizeof(remote), 0, sizeof(remote));
 
-		SafeMemset(&connector->connect, sizeof(connector->connect), 0, sizeof(connector->connect));
-		connector->connect.opt = IOCP_OPT_CONNECT;
-		connector->connect.sock = sock;
-		connector->connect.code = 0;
+			SafeMemset(&connector.connect, sizeof(connector.connect), 0, sizeof(connector.connect));
+			connector.connect.opt = IOCP_OPT_CONNECT;
+			connector.connect.sock = sock;
+			connector.connect.code = 0;
 
-		connector->remote.sin_family = AF_INET;
-		if (SOCKET_ERROR == bind(sock, (sockaddr *)&connector->remote, sizeof(sockaddr_in))) {
-			delete connector;
-			return -1;
-		}
+			remote.sin6_family = AF_INET6;
+			if (SOCKET_ERROR == bind(sock, (sockaddr *)&remote, sizeof(sockaddr_in6)))
+				return -1;
 
-		connector->remote.sin_port = htons(port);
-		if ((connector->remote.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) {
-			delete connector;
-			return -1;
-		}
+			remote.sin6_port = htons(port);
+			if (inet_pton(AF_INET6, ip, &remote.sin6_addr) != 1)
+				return -1;
 
-		BOOL res = g_connect(sock, (sockaddr *)&connector->remote, sizeof(sockaddr_in), nullptr, 0, nullptr, (LPOVERLAPPED)&connector->connect);
-		int32_t errCode = WSAGetLastError();
-		if (!res && errCode != WSA_IO_PENDING) {
-			delete connector;
-			return -1;
+			BOOL res = g_connect(sock, (sockaddr *)&remote, sizeof(sockaddr_in6), nullptr, 0, nullptr, (LPOVERLAPPED)&connector.connect);
+			int32_t errCode = WSAGetLastError();
+			if (!res && errCode != WSA_IO_PENDING)
+				return -1;
 		}
 
 		co->SetTemp(&sock);
@@ -195,7 +256,6 @@ namespace hyper_net {
 
 		hn_yield;
 
-		delete connector;
 		if (sock == INVALID_SOCKET)
 			return -1;
 
@@ -208,7 +268,7 @@ namespace hyper_net {
 		return fd;
 	}
 
-	int32_t NetEngine::Accept(int32_t fd) {
+	int32_t NetEngine::Accept(int32_t fd, char * remoteIp, int32_t remoteIpSize, int32_t * remotePort) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
@@ -217,9 +277,33 @@ namespace hyper_net {
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == fd && sock.acceptor) {
 				if (!sock.accepts.empty()) {
+					bool ipv6 = sock.ipv6;
 					int32_t coming = sock.accepts.front();
 					sock.accepts.pop_back();
 					guard.unlock();
+
+					if (!ipv6) {
+						sockaddr_in remote;
+						int32_t len = sizeof(remote);
+						getpeername(coming, (sockaddr*)&remote, &len);
+
+						if (remotePort)
+							*remotePort = ntohs(remote.sin_port);
+
+						if (remoteIp)
+							inet_ntop(AF_INET, (sockaddr*)&remote, remoteIp, remoteIpSize);
+					}
+					else {
+						sockaddr_in6 remote;
+						int32_t len = sizeof(remote);
+						getpeername(coming, (sockaddr*)&remote, &len);
+
+						if (remotePort)
+							*remotePort = ntohs(remote.sin6_port);
+
+						if (remoteIp)
+							inet_ntop(AF_INET6, (sockaddr*)&remote, remoteIp, remoteIpSize);
+					}
 
 					int32_t comingFd = Apply(coming);
 					if (comingFd < 0) {
@@ -622,7 +706,7 @@ namespace hyper_net {
 		return evt;
 	}
 
-	int32_t NetEngine::Apply(socket_t s, bool acceptor) {
+	int32_t NetEngine::Apply(socket_t s, bool acceptor, bool ipv6) {
 		int32_t count = MAX_SOCKET;
 		while (count--) {
 			int32_t fd = _nextFd;
@@ -638,6 +722,7 @@ namespace hyper_net {
 					sock.fd = fd;
 					sock.sock = s;
 					sock.acceptor = acceptor;
+					sock.ipv6 = ipv6;
 
 					sock.recving = false;
 					sock.recvBuf = (char *)malloc(NET_INIT_FRAME);
