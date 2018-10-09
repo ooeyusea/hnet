@@ -148,9 +148,9 @@ void test_long_data(int32_t len) {
 			recv = hn_recv(c, recvBuff, 1023);
 		}
 
-		//printf("recv %s\n", str.c_str());
+		printf("recv %s\n", str.c_str());
 
-		printf("data:0x%x\n", (int64_t)data);
+		//printf("data:0x%x\n", (int64_t)data);
 		delete[] data;
 
 		//hn_sleep 5000;

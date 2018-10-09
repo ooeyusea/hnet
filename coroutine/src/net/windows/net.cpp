@@ -287,6 +287,8 @@ namespace hyper_net {
 						memmove(sock.recvBuf, sock.recvBuf + len, sock.recvSize - len);
 						sock.recvSize -= len;
 					}
+					else
+						sock.recvSize = 0;
 					sock.readingCo = nullptr;
 					return len;
 				}
@@ -517,7 +519,7 @@ namespace hyper_net {
 	bool NetEngine::DoSend(Socket & sock) {
 		if (sock.sendSize == 0) {
 			if (sock.sendChainSize > sock.sendMaxSize) {
-				sock.sendMaxSize *= 2;
+				sock.sendMaxSize = sock.sendChainSize * 2;
 				sock.sendBuf = (char*)realloc(sock.sendBuf, sock.sendMaxSize);
 			}
 
