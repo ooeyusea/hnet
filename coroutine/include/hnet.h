@@ -100,13 +100,58 @@ namespace hyper_net {
 
 	class IAsyncQueue {
 	public:
-		~IAsyncQueue() {}
+		virtual ~IAsyncQueue() {}
 
 		virtual void Call(uint32_t threadId, void * data) = 0;
 		virtual void Shutdown() = 0;
 	};
 
 	IAsyncQueue * CreateAsyncQueue(int32_t threadCount, bool complete, const std::function<void(void * data)>& f);
+
+	class ChannelImpl;
+	class Channel {
+	public:
+		Channel(int32_t blockSize, int32_t capacity);
+		~Channel();
+
+		void Push(const void * p);
+		void Pop(void * p);
+
+		bool TryPush(const void * p);
+		bool TryPop(void * p);
+
+	private:
+		ChannelImpl * _impl;
+	};
+	
+	template <typename T, int32_t capacity = -1>
+	class CoChannel {
+		static_assert(capacity != 0, "channel capacity must not zero");
+	public:
+		CoChannel() : _impl(sizeof(T), capacity) {}
+		~CoChannel() {}
+
+		inline CoChannel& operator<<(const T& t) {
+			_impl.Push(&t);
+			return *this;
+		}
+
+		inline CoChannel& operator>>(T& t) {
+			_impl.Pop(&t);
+			return *this;
+		}
+
+		inline bool TryPush(const T& t) {
+			return _impl.TryPush(&t);
+		}
+
+		inline bool TryPop(T& t) {
+			return _impl.TryPop(&t);
+		}
+
+	private:
+		Channel _impl;
+	};
 }
 
 #define hn_fork hyper_net::Forker()-
@@ -128,5 +173,7 @@ namespace hyper_net {
 #define hn_mutex hyper_net::CoMutex
 
 #define hn_create_async hyper_net::CreateAsyncQueue
+
+#define hn_channel(T, capicity) hyper_net::CoChannel<T, capicity>
 
 #endif // !__HNET_H__

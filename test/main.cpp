@@ -200,6 +200,27 @@ void test_active() {
 	}
 }
 
+void test_channel() {
+	hn_channel(int, 10) ch1;
+	hn_channel(int, 10) ch2;
+	
+	hn_fork [&ch1, &ch2]{
+		int a = 0;
+		ch1 >> a;
+
+		printf("a is %d\n", a);
+
+		hn_sleep 5000;
+		ch2 << (a + 1);
+	};
+
+	ch1 << 2;
+
+	int b = 0;
+	ch2 >> b;
+	printf("b is %d\n", b);
+}
+
 void start(int32_t argc, char ** argv) {
 	if (strcmp(argv[1], "server") == 0)
 		test_server();
@@ -210,4 +231,6 @@ void start(int32_t argc, char ** argv) {
 		for (int32_t i = 0; i < count; ++i)
 			test_random_data();
 	}
+	else if (strcmp(argv[1], "channel") == 0)
+		test_channel();
 }
