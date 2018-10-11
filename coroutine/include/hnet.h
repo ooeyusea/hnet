@@ -1,6 +1,7 @@
 #ifndef __HNET_H__
 #define __HNET_H__
 #include <functional>
+#include <exception>
 
 #define DEFAULT_STACK_SIZE 64 * 1024
 #define HN_IPV4 0
@@ -108,6 +109,11 @@ namespace hyper_net {
 
 	IAsyncQueue * CreateAsyncQueue(int32_t threadCount, bool complete, const std::function<void(void * data)>& f);
 
+	class ChannelCloseException : public std::exception {
+	public:
+		virtual char const* what() const noexcept { return "channel closed"; }
+	};
+
 	class ChannelImpl;
 	class Channel {
 	public:
@@ -119,6 +125,8 @@ namespace hyper_net {
 
 		bool TryPush(const void * p);
 		bool TryPop(void * p);
+
+		void Close();
 
 	private:
 		ChannelImpl * _impl;
@@ -147,6 +155,10 @@ namespace hyper_net {
 
 		inline bool TryPop(T& t) {
 			return _impl.TryPop(&t);
+		}
+
+		inline void Close() {
+			_impl.Close();
 		}
 
 	private:

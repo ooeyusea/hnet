@@ -55,6 +55,7 @@ namespace hyper_net {
 
 			int32_t fd = 0;
 			socket_t sock = INVALID_SOCKET;
+			bool ipv6 = false;
 
 			Coroutine * readingCo = nullptr;
 
@@ -78,10 +79,10 @@ namespace hyper_net {
 			return g_instance;
 		}
 
-		int32_t Listen(const char * ip, const int32_t port);
-		int32_t Connect(const char * ip, const int32_t port);
+		int32_t Listen(const char * ip, const int32_t port, int32_t proto);
+		int32_t Connect(const char * ip, const int32_t port, int32_t proto);
 
-		int32_t Accept(int32_t fd);
+		int32_t Accept(int32_t fd, char * remoteIp, int32_t remoteIpSize, int32_t * remotePort);
 
 		void Send(int32_t fd, const char * buf, int32_t size);
 		int32_t Recv(int32_t fd, char * buf, int32_t size);
@@ -100,7 +101,7 @@ namespace hyper_net {
 		NetEngine();
 		~NetEngine();
 
-		int32_t Apply(socket_t sock, bool acceptor = false);
+		int32_t Apply(socket_t sock, bool acceptor = false, bool ipv6 = false);
 		void Close(Socket & sock);
 		void ShutdownListener(std::unique_lock<spin_mutex>& guard, Socket& sock);
 

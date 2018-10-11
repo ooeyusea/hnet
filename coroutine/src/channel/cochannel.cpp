@@ -74,6 +74,9 @@ namespace hyper_net {
 		if (_capacity > 0) {
 			while (true) {
 				std::unique_lock<spin_mutex> lock(_mutex);
+				if (_close)
+					throw ChannelCloseException();
+
 				if (_write - _read > 0) {
 					char * src = _buffer + (_read % _capacity) * _blockSize;
 					SafeMemcpy(p, _blockSize, src, _blockSize);
@@ -104,6 +107,9 @@ namespace hyper_net {
 		else {
 			while (true) {
 				std::unique_lock<spin_mutex> lock(_mutex);
+				if (_close)
+					throw ChannelCloseException();
+
 				if (_tail == nullptr) {
 					Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 					OASSERT(co, "must call in coroutine");
@@ -135,6 +141,9 @@ namespace hyper_net {
 	bool ChannelImpl::TryPush(const void * p) {
 		if (_capacity > 0) {
 			std::unique_lock<spin_mutex> lock(_mutex);
+			if (_close)
+				return false;
+
 			if (_write - _read < _capacity) {
 				char * dst = _buffer + (_write % _capacity) * _blockSize;
 				SafeMemcpy(dst, _blockSize, p, _blockSize);
@@ -154,6 +163,9 @@ namespace hyper_net {
 				return false;
 		}
 		else {
+			if (_close)
+				return false;
+
 			Link * link = (Link *)malloc(sizeof(Link) + _blockSize);
 			link->prev = nullptr;
 			SafeMemcpy((char*)link + sizeof(Link), _blockSize, p, _blockSize);
@@ -171,6 +183,9 @@ namespace hyper_net {
 	bool ChannelImpl::TryPop(void * p) {
 		if (_capacity > 0) {
 			std::unique_lock<spin_mutex> lock(_mutex);
+			if (_close)
+				return false;
+
 			if (_write - _read > 0) {
 				char * src = _buffer + (_read % _capacity) * _blockSize;
 				SafeMemcpy(p, _blockSize, src, _blockSize);
@@ -191,6 +206,9 @@ namespace hyper_net {
 		}
 		else {
 			std::unique_lock<spin_mutex> lock(_mutex);
+			if (_close)
+				return false;
+
 			if (_tail == nullptr)
 				return false;
 			else {
@@ -210,6 +228,25 @@ namespace hyper_net {
 				return true;
 			}
 		}
+	}
+
+	void ChannelImpl::Close() {
+		std::unique_lock<spin_mutex> lock(_mutex);
+		_close = true;
+
+		std::list<Coroutine*> writeQueue;
+		writeQueue.swap(_writeQueue);
+
+		std::list<Coroutine*> readQueue;
+		readQueue.swap(_readQueue);
+
+		lock.unlock();
+
+		for (auto * co : writeQueue)
+			Scheduler::Instance().AddCoroutine(co);
+
+		for (auto * co : readQueue)
+			Scheduler::Instance().AddCoroutine(co);
 	}
 
 	Channel::Channel(int32_t blockSize, int32_t capacity) {
@@ -234,5 +271,9 @@ namespace hyper_net {
 
 	bool Channel::TryPop(void * p) {
 		return _impl->TryPop(p);
+	}
+
+	void Channel::Close() {
+		_impl->Close();
 	}
 }

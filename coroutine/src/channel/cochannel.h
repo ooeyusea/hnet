@@ -20,10 +20,13 @@ namespace hyper_net {
 		bool TryPush(const void * p);
 		bool TryPop(void * p);
 
+		void Close();
+
 	private:
 		spin_mutex _mutex;
 		int32_t _capacity;
 		int32_t _blockSize;
+		bool _close = false;
 
 		char * _buffer = nullptr;
 		uint32_t _read = 0;

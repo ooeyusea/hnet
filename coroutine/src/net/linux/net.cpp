@@ -32,34 +32,65 @@ namespace hyper_net {
 
 	}
 
-	int32_t NetEngine::Listen(const char * ip, const int32_t port) {
+	int32_t NetEngine::Listen(const char * ip, const int32_t port, int32_t proto) {
 		socket_t sock = INVALID_SOCKET;
-		if (INVALID_SOCKET == (sock = socket(AF_INET, SOCK_STREAM, 0))) {
-			return -1;
-		}
+		if (proto == HN_IPV4) {
+			if (INVALID_SOCKET == (sock = socket(AF_INET, SOCK_STREAM, 0))) {
+				return -1;
+			}
 
-		if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
-			close(sock);
-			return -1;
-		}
+			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
+				close(sock);
+				return -1;
+			}
 
-		int32_t reuse = 1;
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse)) == -1) {
-			close(sock);
-			return -1;
-		}
+			int32_t reuse = 1;
+			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse)) == -1) {
+				close(sock);
+				return -1;
+			}
 
-		sockaddr_in addr;
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(port);
-		if ((addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) {
-			close(sock);
-			return -1;
-		}
+			sockaddr_in addr;
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(port);
+			if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1) {
+				close(sock);
+				return -1;
+			}
 
-		if (bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0) {
-			close(sock);
-			return -1;
+			if (bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0) {
+				close(sock);
+				return -1;
+			}
+		}
+		else {
+			if (INVALID_SOCKET == (sock = socket(AF_INET6, SOCK_STREAM, 0))) {
+				return -1;
+			}
+
+			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
+				close(sock);
+				return -1;
+			}
+
+			int32_t reuse = 1;
+			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse)) == -1) {
+				close(sock);
+				return -1;
+			}
+
+			sockaddr_in6 addr;
+			addr.sin6_family = AF_INET6;
+			addr.sin6_port = htons(port);
+			if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1) {
+				close(sock);
+				return -1;
+			}
+
+			if (bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0) {
+				close(sock);
+				return -1;
+			}
 		}
 
 		if (listen(sock, 128) < 0) {
@@ -67,7 +98,7 @@ namespace hyper_net {
 			return -1;
 		}
 
-		int32_t fd = Apply(sock, true);
+		int32_t fd = Apply(sock, true, proto == HN_IPV6);
 		if (fd < 0) {
 			close(sock);
 			return -1;
@@ -76,37 +107,66 @@ namespace hyper_net {
 		return fd;
 	}
 
-	int32_t NetEngine::Connect(const char * ip, const int32_t port) {
+	int32_t NetEngine::Connect(const char * ip, const int32_t port, int32_t proto) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
-		sockaddr_in addr;
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(port);
-		if ((addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) {
-			return -1;
-		}
-
 		socket_t sock = INVALID_SOCKET;
-		if (INVALID_SOCKET == (sock = socket(AF_INET, SOCK_STREAM, 0))) {
-			return -1;
-		}
+		if (proto == HN_IPV4) {
+			sockaddr_in addr;
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(port);
+			if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1)
+				return -1;
 
-		if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
-			close(sock);
-			return -1;
-		}
+			if (INVALID_SOCKET == (sock = socket(AF_INET, SOCK_STREAM, 0))) {
+				return -1;
+			}
 
-		long nonNegal = 1l;
-		if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
-			close(sock);
-			return -1;
-		}
+			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
+				close(sock);
+				return -1;
+			}
 
-		int32_t res = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
-		if (res < 0 && errno != EINPROGRESS) {
-			close(sock);
-			return -1;
+			long nonNegal = 1l;
+			if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
+				close(sock);
+				return -1;
+			}
+
+			int32_t res = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
+			if (res < 0 && errno != EINPROGRESS) {
+				close(sock);
+				return -1;
+			}
+		}
+		else {
+			sockaddr_in6 addr;
+			addr.sin6_family = AF_INET6;
+			addr.sin6_port = htons(port);
+			if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1)
+				return -1;
+
+			if (INVALID_SOCKET == (sock = socket(AF_INET6, SOCK_STREAM, 0))) {
+				return -1;
+			}
+
+			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
+				close(sock);
+				return -1;
+			}
+
+			long nonNegal = 1l;
+			if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
+				close(sock);
+				return -1;
+			}
+
+			int32_t res = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
+			if (res < 0 && errno != EINPROGRESS) {
+				close(sock);
+				return -1;
+			}
 		}
 
 
@@ -130,19 +190,28 @@ namespace hyper_net {
 		return -1;
 	}
 
-	int32_t NetEngine::Accept(int32_t fd) {
+	int32_t NetEngine::Accept(int32_t fd, char * remoteIp, int32_t remoteIpSize, int32_t * remotePort) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd && sock.acceptor) {
+			bool ipv6 = sock.ipv6;
 			socket_t comingSock = INVALID_SOCKET;
 			if (!sock.waiting) {
-				struct sockaddr_in addr;
-				socklen_t len = sizeof(addr);
+				if (sock.ipv6) {
+					struct sockaddr_in6 addr;
+					socklen_t len = sizeof(addr);
 
-				comingSock = accept(sock.sock, (struct sockaddr*)&addr, &len);
+					comingSock = accept(sock.sock, (struct sockaddr*)&addr, &len);
+				}
+				else {
+					struct sockaddr_in addr;
+					socklen_t len = sizeof(addr);
+
+					comingSock = accept(sock.sock, (struct sockaddr*)&addr, &len);
+				}
 				if (comingSock < 0) {
 					if (errno == EAGAIN) {
 						sock.waiting = true;
@@ -162,6 +231,29 @@ namespace hyper_net {
 					if (setsockopt(comingSock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
 						close(comingSock);
 						return -1;
+					}
+
+					if (!ipv6) {
+						sockaddr_in remote;
+						socklen_t len = sizeof(remote);
+						getpeername(comingSock, (sockaddr*)&remote, &len);
+
+						if (remotePort)
+							*remotePort = ntohs(remote.sin_port);
+
+						if (remoteIp)
+							inet_ntop(AF_INET, (sockaddr*)&remote, remoteIp, remoteIpSize);
+					}
+					else {
+						sockaddr_in6 remote;
+						socklen_t len = sizeof(remote);
+						getpeername(comingSock, (sockaddr*)&remote, &len);
+
+						if (remotePort)
+							*remotePort = ntohs(remote.sin6_port);
+
+						if (remoteIp)
+							inet_ntop(AF_INET6, (sockaddr*)&remote, remoteIp, remoteIpSize);
 					}
 
 					return Apply(comingSock);
@@ -185,6 +277,29 @@ namespace hyper_net {
 				if (setsockopt(comingSock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
 					close(comingSock);
 					return -1;
+				}
+
+				if (!ipv6) {
+					sockaddr_in remote;
+					socklen_t len = sizeof(remote);
+					getpeername(comingSock, (sockaddr*)&remote, &len);
+
+					if (remotePort)
+						*remotePort = ntohs(remote.sin_port);
+
+					if (remoteIp)
+						inet_ntop(AF_INET, (sockaddr*)&remote, remoteIp, remoteIpSize);
+				}
+				else {
+					sockaddr_in6 remote;
+					socklen_t len = sizeof(remote);
+					getpeername(comingSock, (sockaddr*)&remote, &len);
+
+					if (remotePort)
+						*remotePort = ntohs(remote.sin6_port);
+
+					if (remoteIp)
+						inet_ntop(AF_INET6, (sockaddr*)&remote, remoteIp, remoteIpSize);
 				}
 
 				return Apply(comingSock);
@@ -373,12 +488,23 @@ namespace hyper_net {
 			if (sock.fd == evt->fd && sock.acceptor) {
 				sock.waiting = false;
 
-				struct sockaddr_in addr;
-				socklen_t len = sizeof(addr);
 				while (!sock.waitAcceptCo.empty()) {
 					Coroutine * co = sock.waitAcceptCo.front();
 					socket_t& commingSock = *(socket_t*)co->GetTemp();
-					commingSock = accept(sock.sock, (struct sockaddr*)&addr, &len);
+
+					if (sock.ipv6) {
+						struct sockaddr_in6 addr;
+						socklen_t len = sizeof(addr);
+
+						commingSock = accept(sock.sock, (struct sockaddr*)&addr, &len);
+					}
+					else {
+						struct sockaddr_in addr;
+						socklen_t len = sizeof(addr);
+
+						commingSock = accept(sock.sock, (struct sockaddr*)&addr, &len);
+					}
+
 					if (commingSock < 0) {
 						if (errno == EAGAIN) {
 							sock.waiting = true;
@@ -474,7 +600,7 @@ namespace hyper_net {
 		return -1;
 	}
 
-	int32_t NetEngine::Apply(socket_t s, bool acceptor) {
+	int32_t NetEngine::Apply(socket_t s, bool acceptor, bool ipv6) {
 		int32_t count = MAX_SOCKET;
 		while (count--) {
 			int32_t fd = _nextFd;
@@ -490,6 +616,7 @@ namespace hyper_net {
 					sock.fd = fd;
 					sock.sock = s;
 					sock.acceptor = acceptor;
+					sock.ipv6 = ipv6;
 
 					sock.readingCo = nullptr;
 

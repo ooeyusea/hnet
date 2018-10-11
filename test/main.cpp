@@ -206,15 +206,21 @@ void test_channel() {
 	
 	hn_fork [&ch1, &ch2]{
 		int a = 0;
-		ch1 >> a;
+		try {
+			ch1 >> a;
 
-		printf("a is %d\n", a);
+
+			printf("a is %d\n", a);
+		}
+		catch (hyper_net::ChannelCloseException& e) {
+			printf("%s\n", e.what());
+		}
 
 		hn_sleep 5000;
 		ch2 << (a + 1);
 	};
 
-	ch1 << 2;
+	ch1.Close();
 
 	int b = 0;
 	ch2 >> b;
