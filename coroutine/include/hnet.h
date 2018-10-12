@@ -2,6 +2,7 @@
 #define __HNET_H__
 #include <functional>
 #include <exception>
+#include <type_traits>
 
 #define DEFAULT_STACK_SIZE 64 * 1024
 #define HN_IPV4 0
@@ -120,6 +121,8 @@ namespace hyper_net {
 		Channel(int32_t blockSize, int32_t capacity);
 		~Channel();
 
+		void SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn);
+
 		void Push(const void * p);
 		void Pop(void * p);
 
@@ -135,8 +138,31 @@ namespace hyper_net {
 	template <typename T, int32_t capacity = -1>
 	class CoChannel {
 		static_assert(capacity != 0, "channel capacity must not zero");
+
+		struct CoChannelNullFn {
+			const std::function<void(void * dst, const void * p)> push = nullptr;
+			const std::function<void(void * src, void * p)> pop = nullptr;
+		};
+
+		struct CoChannelFunc {
+			static void Push(void * dst, const void * p) {
+				new(dst) T(*(T*)p);
+			}
+
+			static void Pop(void * src, void * p) {
+				*(T*)p = std::move(*(T*)src);
+				(*(T*)src).~T();
+			}
+
+			const std::function<void(void * dst, const void * p)> push = CoChannelFunc::Push;
+			const std::function<void(void * src, void * p)> pop = CoChannelFunc::Pop;
+		};
+
+		typedef typename std::conditional<std::is_pod<T>::value, CoChannelNullFn, CoChannelFunc>::type FuncType;
 	public:
-		CoChannel() : _impl(sizeof(T), capacity) {}
+		CoChannel() : _impl(sizeof(T), capacity) {
+			_impl.SetFn(_type.push, _type.pop);
+		}
 		~CoChannel() {}
 
 		inline CoChannel& operator<<(const T& t) {
@@ -162,6 +188,7 @@ namespace hyper_net {
 		}
 
 	private:
+		FuncType _type;
 		Channel _impl;
 	};
 }
@@ -170,9 +197,12 @@ namespace hyper_net {
 #define hn_stack(size) (size)-
 #define hn_yield hyper_net::Yielder().Do()
 
+#define hn_connect_p(ip, port, proto) hyper_net::NetAdapter().Connect(ip, port, proto)
+#define hn_listen_p(ip, port, proto) hyper_net::NetAdapter().Listen(ip, port, proto)
 #define hn_connect(ip, port) hyper_net::NetAdapter().Connect(ip, port)
 #define hn_listen(ip, port) hyper_net::NetAdapter().Listen(ip, port)
 #define hn_accept(fd) hyper_net::NetAdapter().Accept(fd)
+#define hn_accept_addr(fd, ip, size, port) hyper_net::NetAdapter().Accept(fd, ip, size, port)
 #define hn_recv(fd, buf, size) hyper_net::NetAdapter().Recv(fd, buf, size)
 #define hn_send(fd, buf, size) hyper_net::NetAdapter().Send(fd, buf, size)
 #define hn_close(fd) hyper_net::NetAdapter().Close(fd)

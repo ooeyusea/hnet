@@ -12,7 +12,13 @@ namespace hyper_net {
 		};
 	public:
 		ChannelImpl(int32_t blockSize, int32_t capacity);
+		ChannelImpl(int32_t blockSize, int32_t capacity, const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn);
 		~ChannelImpl();
+
+		inline void SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn) {
+			_pushFn = pushFn;
+			_popFn = popFn;
+		}
 
 		void Push(const void * p);
 		void Pop(void * p);
@@ -37,6 +43,9 @@ namespace hyper_net {
 
 		std::list<Coroutine*> _writeQueue;
 		std::list<Coroutine*> _readQueue;
+
+		std::function<void(void * dst, const void * p)> _pushFn;
+		std::function<void(void * src, void * p)> _popFn;
 	};
 }
 

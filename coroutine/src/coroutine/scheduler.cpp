@@ -40,7 +40,7 @@ namespace hyper_net {
 			DispatchThread();
 		}).detach();
 
-		hn_fork [argc, argv]{
+		hn_fork hn_stack(1024 * 1024) [argc, argv]{
 			start(argc, argv);
 		};
 
@@ -63,8 +63,10 @@ namespace hyper_net {
 		while (!_terminate) {
 			std::this_thread::sleep_for(std::chrono::microseconds(Options::Instance().GetDispatchThreadCycle()));
 			if (_coroutineCount <= 0) {
-				for (auto * p : _processers)
+				for (auto * p : _processers) {
 					p->Stop();
+					p->NotifyCondition();
+				}
 				_terminate = true;
 				continue;
 			}

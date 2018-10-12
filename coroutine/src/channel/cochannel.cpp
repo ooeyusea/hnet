@@ -11,6 +11,16 @@ namespace hyper_net {
 		}
 	}
 
+	ChannelImpl::ChannelImpl(int32_t blockSize, int32_t capacity, const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn) 
+		: _pushFn(pushFn)
+		, _popFn(popFn) {
+		_capacity = capacity;
+		_blockSize = blockSize;
+		if (capacity > 0) {
+			_buffer = (char*)malloc(blockSize * capacity);
+		}
+	}
+
 	ChannelImpl::~ChannelImpl() {
 		if (_buffer)
 			free(_buffer);
@@ -32,7 +42,10 @@ namespace hyper_net {
 				std::unique_lock<spin_mutex> lock(_mutex);
 				if (_write - _read < _capacity) {
 					char * dst = _buffer + (_write % _capacity) * _blockSize;
-					SafeMemcpy(dst, _blockSize, p, _blockSize);
+					if (!_pushFn)
+						SafeMemcpy(dst, _blockSize, p, _blockSize);
+					else
+						_pushFn(dst, p);
 					++_write;
 
 					if (!_readQueue.empty()) {
@@ -60,7 +73,11 @@ namespace hyper_net {
 		else {
 			Link * link = (Link *)malloc(sizeof(Link) + _blockSize);
 			link->prev = nullptr;
-			SafeMemcpy((char*)link + sizeof(Link), _blockSize, p, _blockSize);
+			char * dst = (char*)link + sizeof(Link);
+			if (!_pushFn)
+				SafeMemcpy(dst, _blockSize, p, _blockSize);
+			else
+				_pushFn(dst, p);
 
 			std::unique_lock<spin_mutex> lock(_mutex);
 			link->next = _head;
@@ -79,7 +96,10 @@ namespace hyper_net {
 
 				if (_write - _read > 0) {
 					char * src = _buffer + (_read % _capacity) * _blockSize;
-					SafeMemcpy(p, _blockSize, src, _blockSize);
+					if (!_popFn)
+						SafeMemcpy(p, _blockSize, src, _blockSize);
+					else
+						_popFn(src, p);
 					++_read;
 
 					if (!_writeQueue.empty()) {
@@ -131,7 +151,11 @@ namespace hyper_net {
 
 					lock.unlock();
 
-					SafeMemcpy(p, _blockSize, (char*)link + sizeof(Link), _blockSize);
+					char * src = (char*)link + sizeof(Link);
+					if (!_popFn)
+						SafeMemcpy(p, _blockSize, src, _blockSize);
+					else
+						_popFn(src, p);
 					free(link);
 				}
 			}
@@ -146,7 +170,10 @@ namespace hyper_net {
 
 			if (_write - _read < _capacity) {
 				char * dst = _buffer + (_write % _capacity) * _blockSize;
-				SafeMemcpy(dst, _blockSize, p, _blockSize);
+				if (!_pushFn)
+					SafeMemcpy(dst, _blockSize, p, _blockSize);
+				else
+					_pushFn(dst, p);
 				++_write;
 
 				if (!_readQueue.empty()) {
@@ -168,7 +195,11 @@ namespace hyper_net {
 
 			Link * link = (Link *)malloc(sizeof(Link) + _blockSize);
 			link->prev = nullptr;
-			SafeMemcpy((char*)link + sizeof(Link), _blockSize, p, _blockSize);
+			char * dst = (char*)link + sizeof(Link);
+			if (!_pushFn)
+				SafeMemcpy(dst, _blockSize, p, _blockSize);
+			else
+				_pushFn(dst, p);
 
 			std::unique_lock<spin_mutex> lock(_mutex);
 			link->next = _head;
@@ -188,7 +219,10 @@ namespace hyper_net {
 
 			if (_write - _read > 0) {
 				char * src = _buffer + (_read % _capacity) * _blockSize;
-				SafeMemcpy(p, _blockSize, src, _blockSize);
+				if (!_popFn)
+					SafeMemcpy(p, _blockSize, src, _blockSize);
+				else
+					_popFn(src, p);
 				++_read;
 
 				if (!_writeQueue.empty()) {
@@ -222,7 +256,11 @@ namespace hyper_net {
 
 				lock.unlock();
 
-				SafeMemcpy(p, _blockSize, (char*)link + sizeof(Link), _blockSize);
+				char * src = (char*)link + sizeof(Link);
+				if (!_popFn)
+					SafeMemcpy(p, _blockSize, src, _blockSize);
+				else
+					_popFn(src, p);
 				free(link);
 
 				return true;
@@ -255,6 +293,10 @@ namespace hyper_net {
 
 	Channel::~Channel() {
 		delete _impl;
+	}
+
+	void Channel::SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn) {
+		_impl->SetFn(pushFn, popFn);
 	}
 
 	void Channel::Push(const void * p) {

@@ -99,7 +99,7 @@ namespace hyper_net {
 			});
 
 			int64_t tick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - _steadyTick;
-			while (_now < tick)
+			while (_now < tick && !_terminate)
 				PushWeel();
 
 			std::this_thread::sleep_for(std::chrono::microseconds(1000));
