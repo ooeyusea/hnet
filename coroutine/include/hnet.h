@@ -217,5 +217,6 @@ namespace hyper_net {
 #define hn_create_async hyper_net::CreateAsyncQueue
 
 #define hn_channel(T, capicity) hyper_net::CoChannel<T, capicity>
+#define hn_channel_close_exception hyper_net::ChannelCloseException
 
 #endif // !__HNET_H__

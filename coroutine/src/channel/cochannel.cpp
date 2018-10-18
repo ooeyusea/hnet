@@ -81,9 +81,20 @@ namespace hyper_net {
 
 			std::unique_lock<spin_mutex> lock(_mutex);
 			link->next = _head;
+			if (_head)
+				_head->prev = link;
 			_head = link;
 			if (_tail == nullptr)
 				_tail = link;
+
+			if (!_readQueue.empty()) {
+				Coroutine * co = _readQueue.front();
+				_readQueue.pop_front();
+
+				lock.unlock();
+
+				Scheduler::Instance().AddCoroutine(co);
+			}
 		}
 	}
 
@@ -157,6 +168,7 @@ namespace hyper_net {
 					else
 						_popFn(src, p);
 					free(link);
+					break;
 				}
 			}
 		}
@@ -203,10 +215,20 @@ namespace hyper_net {
 
 			std::unique_lock<spin_mutex> lock(_mutex);
 			link->next = _head;
+			if (_head)
+				_head->prev = link;
 			_head = link;
 			if (_tail == nullptr)
 				_tail = link;
 
+			if (!_readQueue.empty()) {
+				Coroutine * co = _readQueue.front();
+				_readQueue.pop_front();
+
+				lock.unlock();
+
+				Scheduler::Instance().AddCoroutine(co);
+			}
 			return true;
 		}
 	}
