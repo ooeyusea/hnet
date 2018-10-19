@@ -86,6 +86,8 @@ namespace hyper_net {
 		int64_t _now;
 		bool _terminate{ false };
 
+		std::thread _t;
+
 		std::vector<TimerWeel*> _tw;
 		std::unordered_map<Coroutine*, int64_t> _uses;
 

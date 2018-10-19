@@ -70,12 +70,14 @@ namespace hyper_net {
 		_tw[2]->SetHigher(_tw[3]);
 		_tw[3]->SetHigher(_tw[4]);
 
-		std::thread([]() {
+		_t = std::thread([]() {
 			TimerMgr::Instance().Process();
-		}).detach();
+		});
 	}
 
 	TimerMgr::~TimerMgr() {
+		_terminate = true;
+		_t.join();
 		for (auto * w : _tw)
 			delete w;
 		_tw.clear();

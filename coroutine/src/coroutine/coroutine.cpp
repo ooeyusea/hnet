@@ -110,14 +110,6 @@ namespace hyper_net {
 #endif
 	}
 
-	void Coroutine::SwapTo(Coroutine & co) {
-#ifndef USE_FCONTEXT
-		SwitchToFiber(co._ctx);
-#else
-		jump_fcontext(&_ctx, co._ctx, (intptr_t)&co);
-#endif
-	}
-
 	void Coroutine::SwapOut() {
 #ifndef USE_FCONTEXT
 		SwitchToFiber(GetTlsContext());

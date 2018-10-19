@@ -7,20 +7,18 @@
 #include <iomanip>
 
 #define MINUTE (60 * 1000)
-#define MIN_STACK_SIZE (8 * 1024)
-#define DEFAULT_STACK_SIZE 64 * 1024
 
 namespace hyper_net {
 	Forker& Forker::operator-(const std::function<void()>& f) {
 		if (stackSize == 0)
-			stackSize = DEFAULT_STACK_SIZE;
+			stackSize = Options::Instance().GetDefaultStackSize();
 		hyper_net::Scheduler::Instance().AddCoroutine(f, stackSize);
 		return *this;
 	}
 
 	Forker& Forker::operator-(int32_t size) {
-		if (size < MIN_STACK_SIZE)
-			size = MIN_STACK_SIZE;
+		if (size < Options::Instance().GetMinStackSize())
+			size = Options::Instance().GetMinStackSize();
 		stackSize = size;
 		return *this;
 	}

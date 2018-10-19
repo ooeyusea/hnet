@@ -22,6 +22,8 @@ namespace hyper_net {
 
 		inline int32_t GetPageSize() const { return _pageSize; }
 		inline bool IsProtectStack() const { return _protectStack; }
+		inline int32_t GetDefaultStackSize() const { return _defaultStackSize; }
+		inline int32_t GetMinStackSize() const { return _minStackSize; }
 
 	private:
 		Options() {}
@@ -37,6 +39,8 @@ namespace hyper_net {
 
 		int32_t _pageSize;
 		bool _protectStack;
+		int32_t _defaultStackSize;
+		int32_t _minStackSize;
 	};
 }
 

@@ -37,7 +37,6 @@ namespace hyper_net {
 
 		void Run();
 		void SwapIn();
-		void SwapTo(Coroutine & co);
 		void SwapOut();
 
 #ifndef USE_FCONTEXT

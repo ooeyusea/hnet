@@ -23,6 +23,7 @@ namespace hyper_net {
 	int32_t Scheduler::Start(int32_t argc, char ** argv) {
 		Options::Instance().Setup(argc, argv);
 		NetEngine::Instance();
+		TimerMgr::Instance();
 
 		_maxProcesser = Options::Instance().GetMaxProcesser();
 		_minProcesser = Options::Instance().GetMinProcesser();

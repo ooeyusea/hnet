@@ -1,4 +1,6 @@
 #include "options.h"
+#define MIN_STACK_SIZE (128 * 1024)
+#define DEFAULT_STACK_SIZE (1 * 1024 * 1024)
 
 namespace hyper_net {
 	void Options::Setup(int32_t argc, char ** argv) {
@@ -19,5 +21,7 @@ namespace hyper_net {
 #endif
 
 		_protectStack = true;
+		_defaultStackSize = DEFAULT_STACK_SIZE;
+		_minStackSize = MIN_STACK_SIZE;
 	}
 }
