@@ -20,9 +20,14 @@ void test_async() {
 }
 
 void test_stack() {
-	hn_fork hn_stack(1024 * 1024) [] {
-		printf("stack test complete\n");
-	};
+	for (int32_t i = 0; i < 100; ++i) {
+		hn_fork hn_stack(8 * 1024 * 1024) [] {
+			hn_sleep 30000;
+		};
+	}
+
+	hn_sleep 30000;
+	printf("stack test complete\n");
 }
 
 void test_net() {
@@ -202,29 +207,21 @@ void test_active() {
 
 void test_channel() {
 	hn_channel(int, 10) ch1;
-	hn_channel(int, 10) ch2;
 	
-	hn_fork [&ch1, &ch2]{
+	hn_fork [ch1]{
 		int a = 0;
 		try {
+			hn_sleep 5000;
 			ch1 >> a;
-
 
 			printf("a is %d\n", a);
 		}
 		catch (hyper_net::ChannelCloseException& e) {
 			printf("%s\n", e.what());
 		}
-
-		hn_sleep 5000;
-		ch2 << (a + 1);
 	};
 
 	ch1.Close();
-
-	int b = 0;
-	ch2 >> b;
-	printf("b is %d\n", b);
 }
 
 void start(int32_t argc, char ** argv) {
@@ -239,4 +236,6 @@ void start(int32_t argc, char ** argv) {
 	}
 	else if (strcmp(argv[1], "channel") == 0)
 		test_channel();
+	else if (strcmp(argv[1], "stack") == 0)
+		test_stack();
 }

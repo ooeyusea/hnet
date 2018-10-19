@@ -3,6 +3,7 @@
 #include <functional>
 #include <exception>
 #include <type_traits>
+#include <memory>
 
 #define HN_IPV4 0
 #define HN_IPV6 1
@@ -159,36 +160,37 @@ namespace hyper_net {
 
 		typedef typename std::conditional<std::is_pod<T>::value, CoChannelNullFn, CoChannelFunc>::type FuncType;
 	public:
-		CoChannel() : _impl(sizeof(T), capacity) {
-			_impl.SetFn(_type.push, _type.pop);
+		CoChannel() {
+			_impl.reset(new Channel(sizeof(T), capacity));
+			_impl->SetFn(_type.push, _type.pop);
 		}
 		~CoChannel() {}
 
-		inline CoChannel& operator<<(const T& t) {
-			_impl.Push(&t);
+		inline  const CoChannel& operator<<(const T& t) const {
+			_impl->Push(&t);
 			return *this;
 		}
 
-		inline CoChannel& operator>>(T& t) {
-			_impl.Pop(&t);
+		inline  const CoChannel& operator>>(T& t) const {
+			_impl->Pop(&t);
 			return *this;
 		}
 
-		inline bool TryPush(const T& t) {
-			return _impl.TryPush(&t);
+		inline bool TryPush(const T& t) const {
+			return _impl->TryPush(&t);
 		}
 
-		inline bool TryPop(T& t) {
-			return _impl.TryPop(&t);
+		inline bool TryPop(T& t) const {
+			return _impl->TryPop(&t);
 		}
 
-		inline void Close() {
-			_impl.Close();
+		inline void Close() const {
+			_impl->Close();
 		}
 
 	private:
 		FuncType _type;
-		Channel _impl;
+		mutable std::shared_ptr<Channel> _impl;
 	};
 }
 
