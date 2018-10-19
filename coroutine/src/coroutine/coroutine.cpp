@@ -1,14 +1,73 @@
 #include "coroutine.h"
+#include "options.h"
 
 namespace hyper_net {
+#ifdef WIN32
+	void * MallocStack(int32_t stackSize) {
+		if (!Options::Instance().IsProtectStack()) {
+			void * vp = malloc(stackSize);
+			return (char*)vp + stackSize;
+		}
+
+		int32_t pageSize = Options::Instance().GetPageSize();
+		int32_t pages = std::ceil((float)stackSize / (float)pageSize) + 1;
+		int32_t realSize = pages * pageSize;
+
+		void * vp = ::VirtualAlloc(0, realSize, MEM_COMMIT, PAGE_READWRITE);
+		if (!vp) throw std::bad_alloc();
+
+		DWORD old_options;
+		const BOOL result = ::VirtualProtect(vp, pageSize, PAGE_READWRITE | PAGE_GUARD /*PAGE_NOACCESS*/, &old_options);
+
+		return (char*)vp + realSize;
+	}
+
+	void FreeStack(void * p, int32_t stackSize) {
+		if (!Options::Instance().IsProtectStack()) {
+			free((char*)p - stackSize);
+			return;
+		}
+
+		int32_t pageSize = Options::Instance().GetPageSize();
+		int32_t pages = std::ceil((float)stackSize / (float)pageSize) + 1;
+		int32_t realSize = pages * pageSize;
+
+		void * vp = (char*)p - realSize;
+		::VirtualFree(vp, 0, MEM_RELEASE);
+	}
+#else
+	void * MallocStack(int32_t stackSize) {
+		int32_t pageSize = Options::Instance().GetPageSize();
+		int32_t pages = std::ceil((float)stackSize / (float)pageSize) + 1;
+		int32_t realSize = pages * pageSize;
+
+		void * vp = ::mmap(0, realSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		if (!vp) 
+			throw std::bad_alloc();
+
+		::mprotect(vp, pageSize, PROT_NONE);
+		return (char*)vp + realSize;
+}
+
+	void FreeStack(void * p, int32_t stackSize) {
+		int32_t pageSize = Options::Instance().GetPageSize();
+		int32_t pages = std::ceil((float)stackSize / (float)pageSize) + 1;
+		int32_t realSize = pages * pageSize;
+
+		void * vp = (char*)p - realSize;
+		::munmap(vp, realSize);
+	}
+#endif
+
 	Coroutine::Coroutine(const CoFuncType& f, int32_t stackSize) {
 		_fn = f;
 #ifndef USE_FCONTEXT
 		_ctx = CreateFiberEx(0, 0, FIBER_FLAG_FLOAT_SWITCH, Coroutine::CoroutineProc, this);
 #else
-		_p = malloc(stackSize);
+		_p = MallocStack(stackSize);
+		_stackSize = stackSize;
 		//printf("this:0x%x _p:0x%x stackSize:%d\n", (int64_t)this, (int64_t)_p, stackSize);
-		_ctx = make_fcontext((char*)_p + stackSize, stackSize, Coroutine::CoroutineProc);
+		_ctx = make_fcontext((char*)_p, stackSize, Coroutine::CoroutineProc);
 #endif
 		_status = CoroutineState::CS_RUNNABLE;
 		_processer = nullptr;
@@ -23,7 +82,7 @@ namespace hyper_net {
 			DeleteFiber(_ctx);
 #else
 			//printf("this:0x%x _p:0x%x\n", (int64_t)this, (int64_t)_p);
-			free(_p);
+			FreeStack(_p, _stackSize);
 #endif
 		}
 		_ctx = nullptr;

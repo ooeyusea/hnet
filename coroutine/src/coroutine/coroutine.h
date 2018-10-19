@@ -78,6 +78,7 @@ namespace hyper_net {
 		bool _inQueue;
 
 		void * _p;
+		int32_t _stackSize;
 		void * _temp;
 	};
 }

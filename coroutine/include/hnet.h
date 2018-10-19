@@ -4,7 +4,6 @@
 #include <exception>
 #include <type_traits>
 
-#define DEFAULT_STACK_SIZE 64 * 1024
 #define HN_IPV4 0
 #define HN_IPV6 1
 
@@ -13,7 +12,7 @@ namespace hyper_net {
 		Forker& operator-(const std::function<void()>& f);
 		Forker& operator-(int32_t size);
 
-		int32_t stackSize = DEFAULT_STACK_SIZE;
+		int32_t stackSize = 0;
 	};
 
 	struct Yielder {

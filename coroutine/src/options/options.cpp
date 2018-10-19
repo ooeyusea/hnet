@@ -9,5 +9,15 @@ namespace hyper_net {
 		_dispatchThreadCycle = 1000;
 
 		_epollEventSize = 512;
+
+#ifdef WIN32
+		SYSTEM_INFO sysInfo;
+		::GetSystemInfo(&sysInfo);
+		_pageSize = (int32_t)sysInfo.dwPageSize;
+#else
+		_pageSize = ::sysconf(_SC_PAGESIZE);
+#endif
+
+		_protectStack = true;
 	}
 }
