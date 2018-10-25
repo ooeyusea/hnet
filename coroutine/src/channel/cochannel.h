@@ -15,9 +15,10 @@ namespace hyper_net {
 		ChannelImpl(int32_t blockSize, int32_t capacity, const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn);
 		~ChannelImpl();
 
-		inline void SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn) {
+		inline void SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn, const std::function<void(void * src)>& recoverFn) {
 			_pushFn = pushFn;
 			_popFn = popFn;
+			_recoverFn = recoverFn;
 		}
 
 		void Push(const void * p);
@@ -46,6 +47,7 @@ namespace hyper_net {
 
 		std::function<void(void * dst, const void * p)> _pushFn;
 		std::function<void(void * src, void * p)> _popFn;
+		std::function<void(void * src)> _recoverFn;
 	};
 }
 

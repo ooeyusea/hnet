@@ -5,6 +5,9 @@
 #include "timer.h"
 #include <sstream>
 #include <iomanip>
+#ifndef WIN32
+#include <signal.h>
+#endif
 
 #define MINUTE (60 * 1000)
 
@@ -17,7 +20,9 @@ namespace hyper_net {
 	}
 
 	Forker& Forker::operator-(int32_t size) {
-		if (size < Options::Instance().GetMinStackSize())
+		if (size == 0) 
+			stackSize = Options::Instance().GetDefaultStackSize();
+		else if (size < Options::Instance().GetMinStackSize())
 			size = Options::Instance().GetMinStackSize();
 		stackSize = size;
 		return *this;
@@ -86,5 +91,8 @@ namespace hyper_net {
 }
 
 int32_t main(int32_t argc, char ** argv) {
+#ifndef WIN32
+	signal(SIGPIPE, SIG_IGN);
+#endif
 	return hyper_net::Scheduler::Instance().Start(argc, argv);
 }

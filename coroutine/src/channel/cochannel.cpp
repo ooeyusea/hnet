@@ -22,14 +22,26 @@ namespace hyper_net {
 	}
 
 	ChannelImpl::~ChannelImpl() {
-		if (_buffer)
+		if (_buffer) {
+			if (_recoverFn) {
+				while (_read < _write) {
+					char * src = _buffer + (_read % _capacity) * _blockSize;
+					_recoverFn(src);
+				}
+			}
 			free(_buffer);
+		}
 
 		if (_head) {
 			Link * p = _head;
 			while (p) {
 				Link * c = p;
 				p = p->next;
+
+				if (_recoverFn) {
+					char * src = (char*)c + sizeof(Link);
+					_recoverFn(src);
+				}
 
 				free(c);
 			}
@@ -40,6 +52,9 @@ namespace hyper_net {
 		if (_capacity > 0) {
 			while (true) {
 				std::unique_lock<spin_mutex> lock(_mutex);
+				if (_close)
+					throw ChannelCloseException();
+
 				if (_write - _read < _capacity) {
 					char * dst = _buffer + (_write % _capacity) * _blockSize;
 					if (!_pushFn)
@@ -80,6 +95,11 @@ namespace hyper_net {
 				_pushFn(dst, p);
 
 			std::unique_lock<spin_mutex> lock(_mutex);
+			if (_close) {
+				if (_recoverFn)
+					_recoverFn(dst);
+				throw ChannelCloseException();
+			}
 			link->next = _head;
 			if (_head)
 				_head->prev = link;
@@ -317,8 +337,8 @@ namespace hyper_net {
 		delete _impl;
 	}
 
-	void Channel::SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn) {
-		_impl->SetFn(pushFn, popFn);
+	void Channel::SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn, const std::function<void(void * src)>& recoverFn) {
+		_impl->SetFn(pushFn, popFn, recoverFn);
 	}
 
 	void Channel::Push(const void * p) {

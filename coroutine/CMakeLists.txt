@@ -85,6 +85,11 @@ SET(COCHANNEL
 	"${PROJECT_SOURCE_DIR}/src/channel/cochannel.cpp"
 )
 
+SET(CORPC
+    "${PROJECT_SOURCE_DIR}/src/rpc/corpc.h"
+	"${PROJECT_SOURCE_DIR}/src/rpc/corpc.cpp"
+)
+
 SET(TIMER
     "${PROJECT_SOURCE_DIR}/src/timer/timer.h"
 	"${PROJECT_SOURCE_DIR}/src/timer/timer.cpp"
@@ -130,6 +135,7 @@ SOURCE_GROUP(timer FILES ${TIMER})
 SOURCE_GROUP(comutex FILES ${COMUTEX})
 SOURCE_GROUP(channel FILES ${COCHANNEL})
 SOURCE_GROUP(async FILES ${ASYNC})
+SOURCE_GROUP(rpc FILES ${CORPC})
 SOURCE_GROUP(\\ FILES ${SRC})
 
 ADD_LIBRARY(hnet STATIC
@@ -142,6 +148,7 @@ ADD_LIBRARY(hnet STATIC
 	${PUBLIC}
 	${OPTIONS}
 	${COCHANNEL}
+#	${CORPC}
 )
 
 SET(LIBRARY_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/../bin")

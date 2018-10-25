@@ -351,6 +351,4 @@ void start(int32_t argc, char ** argv) {
 
 	uriCh.Close();
 	opCh.Close();
-
-	hn_sleep 10000;
 }

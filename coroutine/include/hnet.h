@@ -121,7 +121,7 @@ namespace hyper_net {
 		Channel(int32_t blockSize, int32_t capacity);
 		~Channel();
 
-		void SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn);
+		void SetFn(const std::function<void(void * dst, const void * p)>& pushFn, const std::function<void(void * src, void * p)>& popFn, const std::function<void(void * src)>& recoverFn);
 
 		void Push(const void * p);
 		void Pop(void * p);
@@ -142,6 +142,7 @@ namespace hyper_net {
 		struct CoChannelNullFn {
 			const std::function<void(void * dst, const void * p)> push = nullptr;
 			const std::function<void(void * src, void * p)> pop = nullptr;
+			const std::function<void(void * src)> recover = nullptr;
 		};
 
 		struct CoChannelFunc {
@@ -154,15 +155,20 @@ namespace hyper_net {
 				(*(T*)src).~T();
 			}
 
+			static void Recover(void * src) {
+				(*(T*)src).~T();
+			}
+
 			const std::function<void(void * dst, const void * p)> push = CoChannelFunc::Push;
 			const std::function<void(void * src, void * p)> pop = CoChannelFunc::Pop;
+			const std::function<void(void * src, void * p)> recover = CoChannelFunc::Recover;
 		};
 
 		typedef typename std::conditional<std::is_pod<T>::value, CoChannelNullFn, CoChannelFunc>::type FuncType;
 	public:
 		CoChannel() {
 			_impl.reset(new Channel(sizeof(T), capacity));
-			_impl->SetFn(_type.push, _type.pop);
+			_impl->SetFn(_type.push, _type.pop, _type.recover);
 		}
 		~CoChannel() {}
 
@@ -192,6 +198,62 @@ namespace hyper_net {
 		FuncType _type;
 		mutable std::shared_ptr<Channel> _impl;
 	};
+
+//	class RpcException : public std::exception {
+//	public:
+//		virtual char const* what() const noexcept { return "rpc failed"; }
+//	};
+//
+//	struct IRpcEncoder {
+//		virtual ~IRpcEncoder() {}
+//
+//		virtual int32_t CalcEncode(int32_t rpcId, void * p) = 0;
+//		virtual bool Encode(int32_t rpcId, void * p, void * dst, int32_t size) = 0;
+//		virtual bool Decode(int32_t rpcId, void * p, const void * src, int32_t size) = 0;
+//	};
+//
+//	class CoRpcImpl;
+//	class CoRpc {
+//	public:
+//		CoRpc();
+//		~CoRpc();
+//
+//		bool DialRpc(const char * ip, const int32_t port);
+//		bool HandleRpc(const char * ip, const int32_t port);
+//
+//		template <typename P, typename R>
+//		inline R CallR(int32_t rpcId, const P & p) {
+//			if (!_encoder) {
+//				R r;
+//				Call(rpcId, &p, sizeof(p), &r, sizeof(r));
+//				return r;
+//			}
+//			else {
+//				int32_t size = _encoder->CalcEncode(rpcId, p);
+//				char data[size];
+//				if (_encoder->Encode(rpcId, p, data, size)) {
+//					Call(rpcId, data, size, &r, sizeof(r));
+//				}
+//				else
+//					throw RpcException();
+//			}
+//		}
+//
+//		template <typename P>
+//		inline void Call(int32_t rpcId, const P & p) {
+//			Call(rpcId, &p, sizeof(p));
+//		}
+//
+//		void SetEncoder(IRpcEncoder * encoder) { _encoder = encoder; }
+//
+//	protected:
+//		void Call(int32_t rpcId, const void * context, int32_t size, void * resContext, int32_t resSize);
+//		void Call(int32_t rpcId, const void * context, int32_t size);
+//
+//	private:
+//		CoRpcImpl * _impl;
+//		IRpcEncoder * _encoder = nullptr;
+//	};
 }
 
 #define hn_fork hyper_net::Forker()-
