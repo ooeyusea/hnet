@@ -3,6 +3,10 @@
 
 #define NET_BUFF_SIZE 1024
 
+bool Vote::operator<(const Vote& rhs) const {
+	return (electionEpoch == rhs.electionEpoch) ? ((voteZxId == rhs.voteZxId ? (voteId < rhs.voteId) : voteZxId < rhs.voteZxId)) : electionEpoch < rhs.electionEpoch;
+}
+
 void VoteSender::Start(std::string ip, int32_t port) {
 	while (!_terminate) {
 		_fd = hn_connect(ip.c_str(), port);
@@ -29,7 +33,7 @@ void VoteSender::CheckTimeout() {
 		hn_sleep 500;
 
 		int64_t now = GetTickCount();
-		if (now - _activeTick > 1000)
+		if (now - _activeTick > 2000)
 			break;
 	}
 }
@@ -98,7 +102,7 @@ void VoteReciver::CheckTimeout(int32_t fd) {
 		hn_sleep 500;
 
 		int64_t now = GetTickCount();
-		if (now - _activeTick > 1000)
+		if (now - _activeTick > 2000)
 			break;
 	}
 
@@ -140,7 +144,12 @@ void VoteReciver::DealNetPacket(int32_t fd, hn_channel(Vote, -1) ch) {
 					_activeTick = GetTickCount();
 				else if (header.id == VoteHeader::VOTE) {
 					Vote& vote = *(Vote*)(buff + pos + sizeof(VoteHeader));
-					ch << vote;
+					try {
+						ch << vote;
+					}
+					catch (hn_channel_close_exception& e) {
+
+					}
 				}
 				else {
 					//assert(false);
@@ -157,8 +166,192 @@ void VoteReciver::DealNetPacket(int32_t fd, hn_channel(Vote, -1) ch) {
 	}
 }
 
-std::tuple<int8_t, int32_t> Election::LookForLeader() {
-	while (true) {
-
+bool Election::Start(int32_t clusterCount, const std::string& ip, int32_t electionPort, const std::vector<Server>& cluster) {
+	int32_t fd = hn_listen(ip.c_str(), electionPort);
+	if (fd < 0) {
+		printf("election start failed\n");
+		return false;
 	}
+	
+	_senders.resize(clusterCount, nullptr);
+
+	hn_fork [this, fd]{
+		while (true) {
+			int32_t remote = hn_accept(fd);
+			if (remote < 0)
+				break;
+			
+			hn_fork [this, remote]{
+				VoteReciver reciver;
+				reciver.Start(remote, _recvCh);
+			};
+		}
+
+		printf("listen election port failed\n");
+	};
+
+	for (auto& server : cluster) {
+		hn_fork [this, server]{
+			VoteSender sender;
+			_senders[server.id - 1] = &sender;
+
+			sender.Start(server.ip, server.electionPort);
+		};
+	}
+}
+
+Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
+	_id = id;
+	++_logicCount;
+	if (_echoing) {
+		_echoing = false;
+
+		int8_t res;
+		_clearCh >> res;
+	}
+
+	_state = LOOKING;
+
+	std::unordered_map<int32_t, Vote> votes;
+	Vote proposal{id, zxId, _logicCount, id, zxId};
+
+	std::unordered_map<int32_t, Vote> otherVote;
+
+	votes[id] = proposal;
+
+	int64_t mark = GetTickCount();
+	std::list<Vote> queue;
+	while (true) {
+		Vote vote;
+		if (!queue.empty()) {
+			vote = queue.front();
+			queue.pop_front();
+		}
+		else if (queue.empty() && !_recvCh.TryPop(vote)) {
+			hn_sleep 10;
+
+			//todo resend proposal
+			continue;
+		}
+
+		switch (vote.state) {
+		case LOOKING:
+			if (vote.electionEpoch > _logicCount) {
+				_logicCount = vote.electionEpoch;
+				votes.clear();
+
+				votes[vote.idx] = vote;
+
+				proposal.electionEpoch = vote.electionEpoch;
+				if (proposal < vote) {
+					proposal.voteId = vote.voteId;
+					proposal.voteZxId = vote.voteZxId;
+					votes[id] = proposal;
+				}
+
+				//resend proposal
+			}
+			else if (vote.electionEpoch < _logicCount) {
+				break;
+			}
+			else {
+				votes[vote.idx] = vote;
+
+				if (proposal < vote) {
+					proposal.voteId = vote.voteId;
+					proposal.voteZxId = vote.voteZxId;
+					votes[id] = proposal;
+
+					//resend proposal
+				}
+			}
+
+			if (IsVoteOk(votes, vote.voteId, vote.electionEpoch, count)) {
+				int64_t check = GetTickCount();
+				while (true) {
+					if (GetTickCount() - check > 300)
+						break;
+
+					hn_sleep 10;
+
+					Vote n;
+					if (!_recvCh.TryPop(vote))
+						continue;
+
+					if (proposal < vote) {
+						queue.push_back(n);
+						break;
+					}
+				}
+
+				if (queue.empty()) {
+					_state = (proposal.voteId == _id) ? LEADING : FOLLOWING;
+					_leader = proposal;
+					Echo();
+					return proposal;
+				}
+			}
+			break;
+		case FOLLOWING:
+		case LEADING:
+			if (vote.electionEpoch == _logicCount) {
+				votes[vote.idx] = vote;
+
+				if (IsVoteOk(votes, vote.voteId, vote.electionEpoch, count) && CheckLeader(otherVote, vote.voteId, true)) {
+					_state = (vote.voteId == _id) ? LEADING : FOLLOWING;
+					_leader = vote;
+					Echo();
+					return vote;
+				}
+			}
+
+			otherVote[vote.idx] = { vote.idx, vote.state, -1, vote.voteId, -1 };
+			if (IsVoteOk(otherVote, vote.voteId, -1, count) && CheckLeader(otherVote, vote.voteId, false)) {
+				_state = (vote.voteId == _id) ? LEADING : FOLLOWING;
+				_leader = vote;
+				Echo();
+				return vote;
+			}
+			break;
+		}
+	}
+}
+
+void Election::Echo() {
+	hn_fork [this]{
+		_echoing = true;
+		while (_echoing) {
+			Vote vote;
+			if (_recvCh.TryPop(vote)) {
+				hn_sleep 100;
+				continue;
+			}
+
+			if (vote.state == LOOKING) {
+				//send _leader
+			}
+		}
+		_clearCh << (int8_t)1;
+	};
+}
+
+bool Election::IsVoteOk(const std::unordered_map<int32_t, Vote>& votes, int32_t leader, int32_t electionEpoch, int32_t count) {
+	int32_t vote = 0;
+	for (auto p : votes) {
+		if (p.second.electionEpoch == electionEpoch && p.second.voteId == leader)
+			++vote;
+	}
+
+	return (vote >= (count / 2 + 1));
+}
+
+bool Election::CheckLeader(const std::unordered_map<int32_t, Vote>& votes, int32_t leader, bool IsEpochEqual) {
+	if (leader == _id) 
+		return IsEpochEqual;
+	
+	auto itr = votes.find(leader);
+	if (itr != votes.end() && itr->second.state == LEADING)
+		return true;
+
+	return false;
 }

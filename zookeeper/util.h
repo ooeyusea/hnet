@@ -34,4 +34,11 @@ inline WaitCo DoWork(const std::function<void()>& f, int32_t size = 0) {
 	return WaitCo(ch);
 }
 
+struct Server {
+	int32_t id;
+	std::string ip;
+	int32_t electionPort;
+	int32_t votePort;
+};
+
 #endif

@@ -3,23 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <vector>
+#include "election.h"
 
 class ZooKeeper {
-	enum {
-		LOOKING = 0,
-		FOLLOW,
-		LEADER,
-	};
-
-	struct Server {
-		int32_t id;
-		std::string ip;
-		int32_t electionPort;
-		int32_t votePort;
-
-		int32_t electionFd = -1;
-		int32_t voteFd = -1;
-	};
 public:
 	ZooKeeper() {}
 	~ZooKeeper() {}
@@ -32,7 +18,7 @@ public:
 	void Following();
 
 private:
-	int8_t _state = LOOKING;
+	int8_t _state = Election::LOOKING;
 	int32_t _id = 0;
 	int32_t _clientPort = 0;
 	std::string _ip;
@@ -41,7 +27,6 @@ private:
 
 	std::vector<Server> _servers;
 
-	int32_t _electionFd;
 	int32_t _voteFd;
 	int32_t _logicClock = 0;
 	int32_t _zxId = 0;
@@ -101,12 +86,6 @@ bool ZooKeeper::Start() {
 
 	if (idx % 2 != 0) {
 		printf("zookeeper: server count must old\n");
-		return false;
-	}
-
-	_electionFd = hn_listen(_ip.c_str(), _electionFd);
-	if (_electionFd < 0) {
-		printf("zookeeper: listen election failed\n");
 		return false;
 	}
 
