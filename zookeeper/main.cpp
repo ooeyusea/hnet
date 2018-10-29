@@ -13,13 +13,14 @@ public:
 	bool Start();
 	void Run();
 
-	void Election();
+	void Elect();
 	void Leading();
 	void Following();
 
 private:
 	int8_t _state = Election::LOOKING;
 	int32_t _id = 0;
+	int32_t _zxId = 0;
 	int32_t _clientPort = 0;
 	std::string _ip;
 	int32_t _electionPort = 0;
@@ -27,11 +28,7 @@ private:
 
 	std::vector<Server> _servers;
 
-	int32_t _voteFd;
-	int32_t _logicClock = 0;
-	int32_t _zxId = 0;
-	int32_t _voteId = 0;
-	int32_t _voteZxId = 0;
+	Election _election;
 };
 
 bool ZooKeeper::Start() {
@@ -53,7 +50,7 @@ bool ZooKeeper::Start() {
 		++idx;
 
 		char key[64] = { 0 };
-		snprintf(key, 63, "server.", idx);
+		snprintf(key, 63, "server.%d", idx);
 
 		const char * value = ini.GetValue("zookeeper", key);
 		if (!value)
@@ -89,23 +86,38 @@ bool ZooKeeper::Start() {
 		return false;
 	}
 
+	if (!_election.Start(_servers.size() + 1, _ip, _electionPort, _servers)) {
+		printf("zookeeper: election start failed");
+		return false;
+	}
+
 	return true;
 }
 
 void ZooKeeper::Run() {
-	switch (_state) {
-	case LOOKING: Election(); break;
-	case FOLLOW: Following(); break;
-	case LEADER: Leading(); break;
+	while (true) {
+		switch (_state) {
+		case Election::LOOKING: Elect(); break;
+		case Election::FOLLOWING: Following(); break;
+		case Election::LEADING: Leading(); break;
+		}
 	}
 }
 
-void ZooKeeper::Election() {
-	++_logicClock;
-	_voteId = _id;
-	_voteZxId = _zxId;
+void ZooKeeper::Elect() {
+	Vote vote = _election.LookForLeader(_id, _zxId, _servers.size() + 1);
 
-	
+	_state = (vote.voteId == _id) ? Election::LEADING : Election::FOLLOWING;
+}
+
+void ZooKeeper::Leading() {
+	printf("I'm leader\n");
+	hn_sleep(5000);
+}
+
+void ZooKeeper::Following() {
+	printf("I'm follow\n");
+	hn_sleep(5000);
 }
 
 void start(int32_t argc, char ** argv) {

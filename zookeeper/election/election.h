@@ -59,9 +59,8 @@ private:
 	void DealNetPacket(int32_t fd, hn_channel(Vote, -1) ch);
 
 private:
-	bool _terminate;
+	bool _terminate = false;
 	int64_t _activeTick;
-	int64_t _lastSendTick;
 };
 
 class Election {
@@ -81,6 +80,7 @@ public:
 
 	bool IsVoteOk(const std::unordered_map<int32_t, Vote>& votes, int32_t leader, int32_t electionEpoch, int32_t count);
 	bool CheckLeader(const std::unordered_map<int32_t, Vote>& votes, int32_t leader, bool IsEpochEqual);
+	void BrocastVote(const Vote & vote);
 
 private:
 	hn_channel(Vote, -1) _recvCh;

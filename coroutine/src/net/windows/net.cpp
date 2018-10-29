@@ -346,8 +346,20 @@ namespace hyper_net {
 			sock.sendChain = frame;
 			sock.sendChainSize += frame->size;
 
-			if (!sock.sending)
-				DoSend(sock);
+			if (!sock.sending) {
+				if (!DoSend(sock)) {
+					closesocket(sock.sock);
+					sock.closed = true;
+
+					if (!sock.recving) {
+						sock.fd = 0;
+						sock.sock = INVALID_SOCKET;
+
+						free(sock.sendBuf);
+						free(sock.recvBuf);
+					}
+				}
+			}
 		}
 		else {
 			guard.unlock();
@@ -529,16 +541,7 @@ namespace hyper_net {
 		if (sock.fd == evt->socket) {
 			sock.sending = false;
 
-			if (sock.closed) {
-				if (!sock.recving) {
-					sock.fd = 0;
-					sock.sock = INVALID_SOCKET;
-
-					free(sock.sendBuf);
-					free(sock.recvBuf);
-				}
-			}
-			else {
+			if (!sock.closed) {
 				if (evt->code == ERROR_SUCCESS) {
 					sock.sendSize -= evt->bytes;
 					if (sock.sendSize > 0) {
@@ -546,7 +549,10 @@ namespace hyper_net {
 					}
 
 					if (sock.sendSize > 0 || sock.sendChainSize > 0)
-						DoSend(sock);
+						if (!DoSend(sock)) {
+							closesocket(sock.sock);
+							sock.closed = true;
+						}
 					else {
 						if (sock.closing) {
 							closesocket(sock.sock);
@@ -559,8 +565,22 @@ namespace hyper_net {
 						closesocket(sock.sock);
 						sock.closed = true;
 					}
-					else if (sock.sendSize > 0 || sock.sendChainSize > 0)
-						DoSend(sock);
+					else if (sock.sendSize > 0 || sock.sendChainSize > 0) {
+						if (!DoSend(sock)) {
+							closesocket(sock.sock);
+							sock.closed = true;
+						}
+					}
+				}
+			}
+
+			if (sock.closed) {
+				if (!sock.recving) {
+					sock.fd = 0;
+					sock.sock = INVALID_SOCKET;
+
+					free(sock.sendBuf);
+					free(sock.recvBuf);
 				}
 			}
 		}

@@ -2,6 +2,15 @@
 #include "util.h"
 
 #define NET_BUFF_SIZE 1024
+#define RECONNECT_INTERVAL 100
+#define TIMEOUT_CHECK_INTERVAL 100
+#define TIMEOUT 500
+#define HEARTBET 200
+#define WAIT_TIME 300
+#define WAIT_CHECK_INTERVAL 50
+#define ECHO_CEHCK_INTERVAL 100
+#define TRY_POP_VOTE_INTERVAL 50
+#define RESEND_VOTE_INTERVAL 200
 
 bool Vote::operator<(const Vote& rhs) const {
 	return (electionEpoch == rhs.electionEpoch) ? ((voteZxId == rhs.voteZxId ? (voteId < rhs.voteId) : voteZxId < rhs.voteZxId)) : electionEpoch < rhs.electionEpoch;
@@ -9,13 +18,14 @@ bool Vote::operator<(const Vote& rhs) const {
 
 void VoteSender::Start(std::string ip, int32_t port) {
 	while (!_terminate) {
+		printf("zookeeper: connect %s:%d\n", ip.c_str(), port);
 		_fd = hn_connect(ip.c_str(), port);
-		if (!_fd) {
+		if (_fd < 0) {
 			//log
-			hn_sleep 500;
+			hn_sleep RECONNECT_INTERVAL;
 			continue;
 		}
-		_activeTick = GetTickCount();
+		_activeTick = zookeeper::GetTickCount();
 
 		auto test = DoWork([this] { CheckTimeout(); });
 		auto pong = DoWork([this] { DealPingpong(); });
@@ -30,10 +40,10 @@ void VoteSender::Start(std::string ip, int32_t port) {
 
 void VoteSender::CheckTimeout() {
 	while (!_terminate) {
-		hn_sleep 500;
+		hn_sleep TIMEOUT_CHECK_INTERVAL;
 
-		int64_t now = GetTickCount();
-		if (now - _activeTick > 2000)
+		int64_t now = zookeeper::GetTickCount();
+		if (now - _activeTick > TIMEOUT)
 			break;
 	}
 }
@@ -60,11 +70,13 @@ void VoteSender::DealPingpong() {
 				pong.id = VoteHeader::PONG;
 
 				hn_send(_fd, (const char*)&pong, sizeof(pong));
-				_activeTick = GetTickCount();
+				_activeTick = zookeeper::GetTickCount();
 			}
 			else {
 				//assert(false);
 			}
+
+			pos += header.size;
 		}
 
 		if (pos < offset) {
@@ -84,7 +96,7 @@ void VoteSender::Send(const char * context, int32_t size) {
 }
 
 void VoteReciver::Start(int32_t fd, hn_channel(Vote, -1) ch) {
-	_activeTick = GetTickCount();
+	_activeTick = zookeeper::GetTickCount();
 
 	auto test = DoWork([this, fd] { CheckTimeout(fd); });
 	auto tsp = DoWork([this, fd] { TickSendPing(fd); });
@@ -99,10 +111,10 @@ void VoteReciver::Start(int32_t fd, hn_channel(Vote, -1) ch) {
 
 void VoteReciver::CheckTimeout(int32_t fd) {
 	while (!_terminate) {
-		hn_sleep 500;
+		hn_sleep TIMEOUT_CHECK_INTERVAL;
 
-		int64_t now = GetTickCount();
-		if (now - _activeTick > 2000)
+		int64_t now = zookeeper::GetTickCount();
+		if (now - _activeTick > TIMEOUT)
 			break;
 	}
 
@@ -111,16 +123,13 @@ void VoteReciver::CheckTimeout(int32_t fd) {
 
 void VoteReciver::TickSendPing(int32_t fd) {
 	while (!_terminate) {
-		hn_sleep 500;
+		hn_sleep HEARTBET;
 
-		int64_t now = GetTickCount();
-		if (now - _lastSendTick > 1000) {
-			VoteHeader ping;
-			ping.size = sizeof(VoteHeader);
-			ping.id = VoteHeader::PING;
+		VoteHeader ping;
+		ping.size = sizeof(VoteHeader);
+		ping.id = VoteHeader::PING;
 
-			hn_send(fd, (const char*)&ping, sizeof(ping));
-		}
+		hn_send(fd, (const char*)&ping, sizeof(ping));
 	}
 }
 
@@ -141,8 +150,9 @@ void VoteReciver::DealNetPacket(int32_t fd, hn_channel(Vote, -1) ch) {
 					break;
 
 				if (header.id == VoteHeader::PONG)
-					_activeTick = GetTickCount();
+					_activeTick = zookeeper::GetTickCount();
 				else if (header.id == VoteHeader::VOTE) {
+					//printf("zookeeper:recv vote\n");
 					Vote& vote = *(Vote*)(buff + pos + sizeof(VoteHeader));
 					try {
 						ch << vote;
@@ -154,6 +164,7 @@ void VoteReciver::DealNetPacket(int32_t fd, hn_channel(Vote, -1) ch) {
 				else {
 					//assert(false);
 				}
+				pos += header.size;
 			}
 
 			if (pos < offset) {
@@ -201,6 +212,7 @@ bool Election::Start(int32_t clusterCount, const std::string& ip, int32_t electi
 }
 
 Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
+	printf("start looking for leader\n");
 	_id = id;
 	++_logicCount;
 	if (_echoing) {
@@ -219,7 +231,7 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 
 	votes[id] = proposal;
 
-	int64_t mark = GetTickCount();
+	int64_t mark = zookeeper::GetTickCount();
 	std::list<Vote> queue;
 	while (true) {
 		Vote vote;
@@ -228,9 +240,14 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 			queue.pop_front();
 		}
 		else if (queue.empty() && !_recvCh.TryPop(vote)) {
-			hn_sleep 10;
+			hn_sleep TRY_POP_VOTE_INTERVAL;
 
-			//todo resend proposal
+			int64_t now = zookeeper::GetTickCount();
+			if (now - mark >= RESEND_VOTE_INTERVAL) {
+				mark = now;
+
+				BrocastVote(proposal);
+			}
 			continue;
 		}
 
@@ -247,9 +264,11 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 					proposal.voteId = vote.voteId;
 					proposal.voteZxId = vote.voteZxId;
 					votes[id] = proposal;
+
+					printf("zookeeper: 1 other vote is bigger %d %d %d\n", vote.voteId, vote.electionEpoch, vote.voteZxId);
 				}
 
-				//resend proposal
+				BrocastVote(proposal);
 			}
 			else if (vote.electionEpoch < _logicCount) {
 				break;
@@ -262,17 +281,19 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 					proposal.voteZxId = vote.voteZxId;
 					votes[id] = proposal;
 
-					//resend proposal
+					BrocastVote(proposal);
+
+					printf("zookeeper: 2 other vote is bigger %d %d %d\n", vote.voteId, vote.electionEpoch, vote.voteZxId);
 				}
 			}
 
 			if (IsVoteOk(votes, vote.voteId, vote.electionEpoch, count)) {
-				int64_t check = GetTickCount();
+				int64_t check = zookeeper::GetTickCount();
 				while (true) {
-					if (GetTickCount() - check > 300)
+					if (zookeeper::GetTickCount() - check > WAIT_TIME)
 						break;
 
-					hn_sleep 10;
+					hn_sleep WAIT_CHECK_INTERVAL;
 
 					Vote n;
 					if (!_recvCh.TryPop(vote))
@@ -287,6 +308,7 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 				if (queue.empty()) {
 					_state = (proposal.voteId == _id) ? LEADING : FOLLOWING;
 					_leader = proposal;
+					printf("zookeeper: leader is %d %d %d\n", _leader.voteId, _leader.electionEpoch, _leader.voteZxId);
 					Echo();
 					return proposal;
 				}
@@ -318,17 +340,27 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 }
 
 void Election::Echo() {
+	_echoing = true;
 	hn_fork [this]{
 		_echoing = true;
 		while (_echoing) {
 			Vote vote;
-			if (_recvCh.TryPop(vote)) {
-				hn_sleep 100;
+			if (!_recvCh.TryPop(vote)) {
+				hn_sleep ECHO_CEHCK_INTERVAL;
 				continue;
 			}
 
 			if (vote.state == LOOKING) {
-				//send _leader
+				char msg[sizeof(VoteHeader) + sizeof(Vote)];
+				VoteHeader& header = *(VoteHeader*)msg;
+				Vote& send = *(Vote*)(msg + sizeof(VoteHeader));
+				header.id = VoteHeader::VOTE;
+				header.size = sizeof(msg);
+				send = _leader;
+				send.state = _state;
+
+				if (vote.idx >= 1 && vote.idx <= (int32_t)_senders.size())
+					_senders[vote.idx-1]->Send(msg, header.size);
 			}
 		}
 		_clearCh << (int8_t)1;
@@ -355,3 +387,20 @@ bool Election::CheckLeader(const std::unordered_map<int32_t, Vote>& votes, int32
 
 	return false;
 }
+
+void Election::BrocastVote(const Vote & vote) {
+	//printf("zookeeper:brocast vote\n");
+	char msg[sizeof(VoteHeader) + sizeof(Vote)];
+	VoteHeader& header = *(VoteHeader*)msg;
+	Vote& send = *(Vote*)(msg + sizeof(VoteHeader));
+	header.id = VoteHeader::VOTE;
+	header.size = sizeof(msg);
+	send = vote;
+	send.state = _state;
+
+	for (auto * sender : _senders) {
+		if (sender)
+			sender->Send(msg, sizeof(msg));
+	}
+}
+
