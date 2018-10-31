@@ -3,7 +3,7 @@
 #created:2015-07-08 09:38:00
 
 cmake_minimum_required(VERSION 2.8)
-PROJECT(game)
+PROJECT(gate)
 IF(UNIX)
     SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
     SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./")
@@ -30,40 +30,40 @@ IF(WIN32)
 ENDIF(WIN32)
 
 INCLUDE_DIRECTORIES(
-    "${PROJECT_SOURCE_DIR}/../coroutine/include"
+    "${PROJECT_SOURCE_DIR}/../../coroutine/include"
 )
 
 LINK_DIRECTORIES(
-	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/lib"
+	"${PROJECT_SOURCE_DIR}/../../thirdparty/boost/lib"
 )
 
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
-	"${PROJECT_SOURCE_DIR}/Game.cpp"
-	"${PROJECT_SOURCE_DIR}/Game.h"
-	"${PROJECT_SOURCE_DIR}/GameObject.cpp"
-	"${PROJECT_SOURCE_DIR}/GameObject.h"
+	"${PROJECT_SOURCE_DIR}/Gate.cpp"
+	"${PROJECT_SOURCE_DIR}/Gate.h"
+	"${PROJECT_SOURCE_DIR}/Session.cpp"
+	"${PROJECT_SOURCE_DIR}/Session.h"
 	"${PROJECT_SOURCE_DIR}/util.h"
 )
 
 SOURCE_GROUP(\\ FILES ${SRC})
 
-ADD_EXECUTABLE(game
+ADD_EXECUTABLE(gate
 	${SRC}
 )
 
 IF(WIN32)
-TARGET_LINK_LIBRARIES(game
-	"${PROJECT_SOURCE_DIR}/../bin/$<CONFIGURATION>/hnet.lib"
+TARGET_LINK_LIBRARIES(gate
+	"${PROJECT_SOURCE_DIR}/../../bin/$<CONFIGURATION>/hnet.lib"
 )
-SET_PROPERTY(TARGET game PROPERTY FOLDER "chief")
+SET_PROPERTY(TARGET gate PROPERTY FOLDER "chief")
 ENDIF(WIN32)
 
 IF(UNIX)
-TARGET_LINK_LIBRARIES(game
-	"${PROJECT_SOURCE_DIR}/../bin/libhnet.a"
-	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/lib/libboost_context.a"
+TARGET_LINK_LIBRARIES(gate
+	"${PROJECT_SOURCE_DIR}/../../bin/libhnet.a"
+	"${PROJECT_SOURCE_DIR}/../../thirdparty/boost/lib/libboost_context.a"
 )
 ENDIF(UNIX)
 
-SET(EXECUTABLE_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/../bin")
+SET(EXECUTABLE_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/../../bin")

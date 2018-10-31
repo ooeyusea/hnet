@@ -95,7 +95,7 @@ void VoteSender::Send(const char * context, int32_t size) {
 	hn_send(_fd, context, size);
 }
 
-void VoteReciver::Start(int32_t fd, hn_channel(Vote, -1) ch) {
+void VoteReciver::Start(int32_t fd, hn_channel<Vote, -1> ch) {
 	_activeTick = zookeeper::GetTickCount();
 
 	auto test = DoWork([this, fd] { CheckTimeout(fd); });
@@ -133,7 +133,7 @@ void VoteReciver::TickSendPing(int32_t fd) {
 	}
 }
 
-void VoteReciver::DealNetPacket(int32_t fd, hn_channel(Vote, -1) ch) {
+void VoteReciver::DealNetPacket(int32_t fd, hn_channel<Vote, -1> ch) {
 	while (true) {
 		char buff[NET_BUFF_SIZE];
 		int32_t offset = 0;

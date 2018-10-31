@@ -1,8 +1,8 @@
-#include "Game.h"
-#include "GameObject.h"
+#include "Gate.h"
+#include "Session.h"
 #include "util.h"
 
-bool Game::Start() {
+bool Gate::Start() {
 	_listenFd = hn_listen("127.0.0.1", 9025);
 	if (_listenFd < 0)
 		return false;
@@ -10,8 +10,8 @@ bool Game::Start() {
 	return true;
 }
 
-void Game::Run() {
-	auto co = DoWork([this] {
+void Gate::Run() {
+	auto co = util::DoWork([this] {
 		while (true) {
 			char ipStr[64] = { 0 };
 			int32_t port = 0;
@@ -21,9 +21,8 @@ void Game::Run() {
 
 			std::string ip = ipStr;
 			hn_fork [fd, ip, port]() {
-				GameObject object(fd, ip, port);
+				Session object(fd, ip, port);
 				object.Start();
-				object.Cleanup();
 			};
 		}
 	});
@@ -35,10 +34,10 @@ void Game::Run() {
 	co.Wait();
 }
 
-void Game::Release() {
+void Gate::Release() {
 
 }
 
-void Game::Terminate() {
+void Gate::Terminate() {
 	_closeCh.TryPush(1);
 }

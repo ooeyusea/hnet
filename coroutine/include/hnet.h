@@ -199,61 +199,125 @@ namespace hyper_net {
 		mutable std::shared_ptr<Channel> _impl;
 	};
 
-//	class RpcException : public std::exception {
-//	public:
-//		virtual char const* what() const noexcept { return "rpc failed"; }
-//	};
-//
-//	struct IRpcEncoder {
-//		virtual ~IRpcEncoder() {}
-//
-//		virtual int32_t CalcEncode(int32_t rpcId, void * p) = 0;
-//		virtual bool Encode(int32_t rpcId, void * p, void * dst, int32_t size) = 0;
-//		virtual bool Decode(int32_t rpcId, void * p, const void * src, int32_t size) = 0;
-//	};
-//
-//	class CoRpcImpl;
-//	class CoRpc {
-//	public:
-//		CoRpc();
-//		~CoRpc();
-//
-//		bool DialRpc(const char * ip, const int32_t port);
-//		bool HandleRpc(const char * ip, const int32_t port);
-//
-//		template <typename P, typename R>
-//		inline R CallR(int32_t rpcId, const P & p) {
-//			if (!_encoder) {
-//				R r;
-//				Call(rpcId, &p, sizeof(p), &r, sizeof(r));
-//				return r;
-//			}
-//			else {
-//				int32_t size = _encoder->CalcEncode(rpcId, p);
-//				char data[size];
-//				if (_encoder->Encode(rpcId, p, data, size)) {
-//					Call(rpcId, data, size, &r, sizeof(r));
-//				}
-//				else
-//					throw RpcException();
-//			}
-//		}
-//
-//		template <typename P>
-//		inline void Call(int32_t rpcId, const P & p) {
-//			Call(rpcId, &p, sizeof(p));
-//		}
-//
-//		void SetEncoder(IRpcEncoder * encoder) { _encoder = encoder; }
-//
-//	protected:
-//		void Call(int32_t rpcId, const void * context, int32_t size, void * resContext, int32_t resSize);
-//		void Call(int32_t rpcId, const void * context, int32_t size);
-//
-//	private:
-//		CoRpcImpl * _impl;
-//		IRpcEncoder * _encoder = nullptr;
-//	};
+	class RpcException : public std::exception {
+	public:
+		virtual char const* what() const noexcept { return "rpc failed"; }
+	};
+
+	class RpcRetImpl;
+	class RpcImpl;
+
+	class RpcRet {
+		friend class RpcImpl;
+	public:
+		RpcRet();
+		~RpcRet();
+
+		void Ret(const void * context, int32_t size);
+		void Fail();
+
+	private:
+		RpcRetImpl * _impl;
+	};
+
+	class Rpc {
+	public:
+		Rpc();
+		~Rpc();
+
+		void Attach(uint32_t serviceId, int32_t fd, const void * context, int32_t size);
+		void RegisterFn(int32_t rpcId, const std::function<void(const void * context, int32_t size, RpcRet & ret)>& fn);
+		void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size);
+		void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size, const std::function<bool (const void * data, int32_t size)>& fn);
+
+	private:
+		RpcImpl * _impl;
+	};
+
+	template <typename Decoder>
+	class CoRpc {
+	public:
+		CoRpc() {}
+		~CoRpc() {}
+
+		inline void Attach(uint32_t serviceId, int32_t fd, const void * context, int32_t size) {
+			_impl.Attach(serviceId, fd);
+		}
+
+		template <typename P>
+		inline void RegisterFn(int32_t rpcId, const std::function<void(const P& p) > & fn) {
+			_impl.RegisterFn(rpcId, [fn](const void * context, int32_t size, RpcRet & ret){
+				P p;
+				if (_encoder.Decode(p, context, size)) {
+					fn(p);
+				}
+				else
+					throw RpcException();
+			});
+		}
+
+		template <typename P, typename R>
+		inline void RegisterFn(int32_t rpcId, const std::function<R (const P& p) > & fn) {
+			_impl.RegisterFn(rpcId, [fn](const void * context, int32_t size, RpcRet & ret) {
+				P p;
+				if (_encoder.Decode(p, context, size)) {
+					R r = fn(p);
+					int32_t size = _decoder.CalcEncode(r);
+#ifndef WIN32
+					char data[size];
+#else
+					char * data = alloca(size);
+#endif
+					if (_encoder.Encode(r, data, size)) {
+						ret.Ret(data, size);
+					}
+					else
+						throw RpcException();
+				}
+				else
+					throw RpcException();
+			});
+		}
+
+		template <typename P, typename R>
+		inline R CallR(uint32_t serviceId, int32_t rpcId, const P & p) {
+			int32_t size = _decoder.CalcEncode(p);
+#ifndef WIN32
+			char data[size];
+#else
+			char * data = alloca(size);
+#endif
+			if (_encoder.Encode(p, data, size)) {
+				R r;
+				_impl.Call(serviceId, rpcId, data, size, [&r](const void * context, int32_t size) -> bool {
+					return _encoder.Decode(r, context, size);
+				});
+
+				return r;
+			}
+			else
+				throw RpcException();
+		}
+
+		template <typename P>
+		inline void Call(uint32_t serviceId, int32_t rpcId, const P & p) {
+			int32_t size = _decoder.CalcEncode(rpcId, p);
+#ifndef WIN32
+			char data[size];
+#else
+			char * data = alloca(size);
+#endif
+			if (_encoder.Encode(p, data, size)) {
+				_impl.Call(serviceId, rpcId, data, size);
+			}
+			else
+				throw RpcException();
+		}
+
+	private:
+		Rpc _impl;
+		Decoder _decoder;
+	};
 }
 
 #define hn_fork hyper_net::Forker()-
@@ -279,7 +343,10 @@ namespace hyper_net {
 
 #define hn_create_async hyper_net::CreateAsyncQueue
 
-#define hn_channel(T, capicity) hyper_net::CoChannel<T, capicity>
+#define hn_channel hyper_net::CoChannel
 #define hn_channel_close_exception hyper_net::ChannelCloseException
+
+#define hn_rpc hyper_net::CoRpc
+#define hn_rpc_exception hyper_net::RpcException
 
 #endif // !__HNET_H__

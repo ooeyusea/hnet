@@ -51,12 +51,12 @@ public:
 	VoteReciver() {}
 	~VoteReciver() {}
 
-	void Start(int32_t fd, hn_channel(Vote, -1) ch);
+	void Start(int32_t fd, hn_channel<Vote, -1> ch);
 
 private:
 	void CheckTimeout(int32_t fd);
 	void TickSendPing(int32_t fd);
-	void DealNetPacket(int32_t fd, hn_channel(Vote, -1) ch);
+	void DealNetPacket(int32_t fd, hn_channel<Vote, -1> ch);
 
 private:
 	bool _terminate = false;
@@ -83,14 +83,14 @@ public:
 	void BrocastVote(const Vote & vote);
 
 private:
-	hn_channel(Vote, -1) _recvCh;
+	hn_channel<Vote, -1> _recvCh;
 	
 	int32_t _id = -1;
 	int8_t _state = LOOKING;
 	int32_t _logicCount = 0;
 
 	Vote _leader;
-	hn_channel(int8_t, 1) _clearCh;
+	hn_channel<int8_t, 1> _clearCh;
 	bool _echoing = false;
 
 	std::vector<VoteSender * > _senders;

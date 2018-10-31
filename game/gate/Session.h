@@ -1,5 +1,5 @@
-#ifndef __GAMEOBJECT_H__
-#define __GAMEOBJECT_H__
+#ifndef __SESSION_H__
+#define __SESSION_H__
 #include "hnet.h"
 
 struct GameObjectMail {
@@ -8,17 +8,15 @@ struct GameObjectMail {
 	int32_t size;
 };
 
-class GameObject {
+class Session {
 public:
-	GameObject(int32_t fd, const std::string& ip, int32_t port) : _fd(fd), _ip(ip), _port(port) {}
-	~GameObject() {}
+	Session(int32_t fd, const std::string& ip, int32_t port) : _fd(fd), _ip(ip), _port(port) {}
+	~Session() {}
 
 	void Start();
-	void Cleanup();
 
 	void CheckAlive();
 	bool ShakeHands();
-	bool Auth();
 	void DealPacket();
 	void Exit();
 
@@ -32,4 +30,4 @@ private:
 	int64_t _aliveTick;
 };
 
-#endif //__GAMEOBJECT_H__
+#endif //__SESSION_H__

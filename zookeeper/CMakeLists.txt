@@ -49,6 +49,13 @@ SET(ELECTION
 	"${PROJECT_SOURCE_DIR}/election/election.cpp"
 )
 
+SET(PAXOS
+	"${PROJECT_SOURCE_DIR}/paxos/lead.h"
+	"${PROJECT_SOURCE_DIR}/paxos/lead.cpp"
+	"${PROJECT_SOURCE_DIR}/paxos/follow.h"
+	"${PROJECT_SOURCE_DIR}/paxos/follow.cpp"
+)
+
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/util.h"
 	"${PROJECT_SOURCE_DIR}/main.cpp"
@@ -56,12 +63,14 @@ SET(SRC
 
 SOURCE_GROUP(ini FILES ${INI})
 SOURCE_GROUP(election FILES ${ELECTION})
+SOURCE_GROUP(paxos FILES ${PAXOS})
 SOURCE_GROUP(\\ FILES ${SRC})
 
 ADD_EXECUTABLE(zookeeper
 	${SRC}
 	${INI}
 	${ELECTION}
+	${PAXOS}
 )
 
 IF(WIN32)

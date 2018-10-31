@@ -206,7 +206,7 @@ void test_active() {
 }
 
 void test_channel() {
-	hn_channel(int, 10) ch1;
+	hn_channel<int, 10> ch1;
 	
 	hn_fork [ch1]{
 		int a = 0;
