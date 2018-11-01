@@ -15,7 +15,7 @@ void Gate::Run() {
 		while (true) {
 			char ipStr[64] = { 0 };
 			int32_t port = 0;
-			int32_t fd = hn_accept_addr(_listenFd, ipStr, sizeof(ipStr) - 1, &port);
+			int32_t fd = hn_accept(_listenFd, ipStr, sizeof(ipStr) - 1, &port);
 			if (fd < 0)
 				break;
 

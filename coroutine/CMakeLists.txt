@@ -63,6 +63,12 @@ ENDIF(UNIX)
 
 SET(SRC
     "${PROJECT_SOURCE_DIR}/include/hnet.h"
+	"${PROJECT_SOURCE_DIR}/include/hnet_net.h"
+	"${PROJECT_SOURCE_DIR}/include/hnet_time.h"
+	"${PROJECT_SOURCE_DIR}/include/hnet_mutex.h"
+	"${PROJECT_SOURCE_DIR}/include/hnet_async.h"
+	"${PROJECT_SOURCE_DIR}/include/hnet_channel.h"
+	"${PROJECT_SOURCE_DIR}/include/hnet_rpc.h"
 	"${PROJECT_SOURCE_DIR}/src/main.cpp"
 )
 

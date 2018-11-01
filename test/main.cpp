@@ -224,6 +224,52 @@ void test_channel() {
 	ch1.Close();
 }
 
+struct TestDecoder {
+	int32_t CalcEncode(int32_t) {
+		return sizeof(int32_t);
+	}
+
+	bool Encode(int32_t v, void * data, int32_t size) {
+		*(int32_t*)data = v;
+		return true;
+	}
+
+	bool Decode(int32_t& v, const void * data, int32_t size) {
+		v = *(int32_t*)data;
+		return true;
+	}
+};
+
+int32_t DoubleValue(const int32_t& v) {
+	return v * 2;
+}
+
+void test_rpc_server() {
+	hn_rpc<TestDecoder> rpc;
+	rpc.RegisterFn<int32_t, int32_t>(1, DoubleValue);
+
+	auto s = hn_listen("0.0.0.0", 9027);
+	while (true) {
+		auto c = hn_accept(s);
+		if (c < 0)
+			break;
+
+		hn_fork[c, &rpc]{
+			rpc.Attach(0, c);
+		};
+	}
+}
+
+void test_rpc_client() {
+	auto c = hn_connect("127.0.0.1", 9027);
+	if (c > 0) {
+		hn_rpc<TestDecoder> rpc;
+		rpc.Attach(0, c);
+		int32_t a = rpc.CallR<int32_t, int32_t>(0, 1, 1);
+		printf("a:%d\n", a);
+	}
+}
+
 void start(int32_t argc, char ** argv) {
 	if (strcmp(argv[1], "server") == 0)
 		test_server();
@@ -238,4 +284,8 @@ void start(int32_t argc, char ** argv) {
 		test_channel();
 	else if (strcmp(argv[1], "stack") == 0)
 		test_stack();
+	else if (strcmp(argv[1], "rpc_client") == 0)
+		test_rpc_client();
+	else if (strcmp(argv[1], "rpc_server") == 0)
+		test_rpc_server();
 }

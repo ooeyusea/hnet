@@ -9,6 +9,8 @@
 #define RPC_LINE_HEARBEAT_INTERVAL 15000
 #define MAX_RPC_SZIE 9941
 #define MAX_TEST_COUNT 10
+#define CHECK_TIMEOUT_COUNT 100
+#define CHECK_TIMEOUT_INTERVAL 1000
 
 namespace hyper_net {
 #pragma pack(push, 1)
@@ -24,6 +26,7 @@ namespace hyper_net {
 			OP_RESPOND,
 			OP_RESPOND_NO_FUNC,
 			OP_RESPOND_FAIL,
+			OP_RESPOND_TIMEOUT,
 		};
 	};
 #pragma pack(pop)
@@ -121,8 +124,16 @@ namespace hyper_net {
 	public:
 		RpcImpl() {
 			SafeMemset(_waits, sizeof(_waits), 0, sizeof(_waits));
+
+			hn_fork [this]{
+				DoClearTimeout();
+			};
 		}
-		~RpcImpl() {}
+		~RpcImpl() {
+			_terminate = true;
+			int8_t res;
+			_waitClose >> res;
+		}
 
 		inline Service& SetupServiceFd(uint32_t serviceId, int32_t fd) {
 			int32_t count = 0;
@@ -168,7 +179,7 @@ namespace hyper_net {
 							break;
 						}
 
-						if (header.size > 0) {
+						if (header.size > MAX_PACKET_SIZE) {
 							hn_close(fd);
 							return;
 						}
@@ -200,26 +211,26 @@ namespace hyper_net {
 				int64_t activeTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 				hn_channel<int8_t, 1> ch;
 
-				hn_fork [ch, &stop, &activeTick, fd]{
+				hn_fork [ch, &stop, &activeTick, fd, this]{
 					int64_t sendTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-					while (!stop) {
+					while (!stop && !_terminate) {
 						hn_sleep RPC_LINE_CHECK_INTERVAL;
 
 						int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 						if (now - activeTick > RPC_LINE_TIMEOUT) {
-							hn_shutdown(fd);
 							break;
 						}
 
 						if (now - sendTick >= RPC_LINE_HEARBEAT_INTERVAL) {
 							RpcHeader header;
-							header.size = sizeof(header.size);
+							header.size = sizeof(header);
 							header.op = RpcHeader::OP_PING;
 
 							hn_send(fd, (const char*)&header, sizeof(header));
 						}
 					}
 
+					hn_shutdown(fd);
 					ch << (int8_t)1;
 				};
 
@@ -232,6 +243,7 @@ namespace hyper_net {
 
 					offset += len;
 
+					bool invalid = false;
 					int32_t pos = 0;
 					while (offset - pos >= sizeof(RpcHeader)) {
 						RpcHeader& header = *(RpcHeader*)(msg + pos);
@@ -239,9 +251,9 @@ namespace hyper_net {
 							break;
 						}
 
-						if (header.size > 0) {
-							hn_close(fd);
-							return;
+						if (header.size > MAX_PACKET_SIZE) {
+							invalid = true;
+							break;
 						}
 
 						if (header.op == RpcHeader::OP_PING) {
@@ -255,13 +267,16 @@ namespace hyper_net {
 							DoRequest(service, header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
 						}
 						else if (header.op == RpcHeader::OP_RESPOND) {
-							DoRespond(header.seq, buf.data() + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
+							DoRespond(header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
 						}
 						else
 							DoRespondFail(header.seq, header.op);
 
 						pos += header.size;
 					}
+
+					if (invalid)
+						break;
 
 					if (offset > pos) {
 						::memmove(msg, msg + pos, offset - pos);
@@ -386,6 +401,34 @@ namespace hyper_net {
 				Scheduler::Instance().AddCoroutine(state->co);
 			}
 		}
+
+		void DoClearTimeout() {
+			int32_t idx = 0;
+			while (!_terminate) {
+				uint64_t seq = _waits[idx];
+				if (seq != 0) {
+#ifdef WIN32
+					if (InterlockedCompareExchangeNoFence(&_waits[idx], 0, seq) == 0) {
+#else
+					if (__sync_bool_compare_and_swap(&_waits[idx], seq, 0)) {
+#endif
+						WaitState& state = (*(WaitState*)seq); 
+						state.state = RpcHeader::OP_RESPOND_TIMEOUT;
+
+						Scheduler::Instance().AddCoroutine(state.co);
+					}
+				}
+
+
+				if (++idx % CHECK_TIMEOUT_COUNT == 0) {
+					hn_sleep CHECK_TIMEOUT_INTERVAL;
+
+					idx = idx % MAX_RPC_SZIE;
+				}
+			}
+
+			_waitClose << (int8_t)1;
+		}
 	
 		inline Service& FindService(uint32_t serviceId) {
 			int32_t count = 0;
@@ -438,6 +481,9 @@ namespace hyper_net {
 		std::unordered_map<int32_t, std::function<void(const void * context, int32_t size, RpcRet & ret)>> _cbs;
 
 		uint64_t _waits[MAX_RPC_SZIE];
+
+		bool _terminate = false;
+		hn_channel<int8_t, 1> _waitClose;
 	};
 
 	Rpc::Rpc() {

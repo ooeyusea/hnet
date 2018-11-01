@@ -125,6 +125,6 @@ namespace hyper_net {
 #else 
 	void Coroutine::CoroutineProc(intptr_t p) {
 		((Coroutine*)p)->Run();
-}
+	}
 #endif
 }
