@@ -22,6 +22,7 @@ namespace hyper_net {
 #define hn_stack(size) (size)-
 #define hn_yield hyper_net::Yielder().Do()
 
+#include "hnet_stream.h"
 #include "hnet_net.h"
 #include "hnet_time.h"
 #include "hnet_channel.h"

@@ -3,6 +3,10 @@
 #include <string.h>
 #include <string>
 #include <algorithm>
+#include <vector>
+#include <set>
+#include <unordered_map>
+#include <map>
 
 void test_async() {
 	hn_fork[]{
@@ -244,9 +248,36 @@ int32_t DoubleValue(const int32_t& v) {
 	return v * 2;
 }
 
+class A {
+public:
+	void Serialize(hyper_net::RpcEncoder& encoder) const {
+		encoder << 2.0;
+	}
+
+	int32_t invoke( ) {
+		return 1;
+	}
+};
+
 void test_rpc_server() {
 	hn_rpc<TestDecoder> rpc;
 	rpc.RegisterFn<int32_t, int32_t>(1, DoubleValue);
+	A a;
+	rpc.Test([&a] ()->int32_t{
+		return 1;
+	});
+	//rpc.Test(DoubleValue);
+	hyper_net::RpcEncoder encoder;
+	encoder << 1;
+	encoder << "abc";
+	encoder << a;
+
+	std::vector<A> va;
+	std::set<A> sa;
+	encoder << va;
+	encoder << sa;
+
+	//hyper_net::IsFunctor<decltype(DoubleValue)>::value;
 
 	auto s = hn_listen("0.0.0.0", 9027);
 	while (true) {
