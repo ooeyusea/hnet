@@ -127,6 +127,7 @@ namespace hyper_net {
 			return *this;
 		}
 
+		bool Fail() { return _stream.fail(); }
 		int32_t Version() { return _version; }
 
 	private:

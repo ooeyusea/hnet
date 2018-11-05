@@ -1,16 +1,16 @@
 #include "corpc.h"
 #include "scheduler.h"
+#include "lock_free_list.h"
 
 #define MAX_PACKET_SIZE 65536
-#define RPC_TIMEOUT 
+#define RPC_TIMEOUT 5000
 #define MAX_SERVICE_SIZE 997
 #define RPC_LINE_TIMEOUT 30000
 #define RPC_LINE_CHECK_INTERVAL 5000
 #define RPC_LINE_HEARBEAT_INTERVAL 15000
 #define MAX_RPC_SZIE 9941
-#define MAX_TEST_COUNT 10
-#define CHECK_TIMEOUT_COUNT 100
-#define CHECK_TIMEOUT_INTERVAL 1000
+#define MAX_TEST_COUNT 15
+#define CHECK_TIMEOUT_INTERVAL 100
 
 namespace hyper_net {
 #pragma pack(push, 1)
@@ -109,7 +109,6 @@ namespace hyper_net {
 	class RpcImpl {
 		struct WaitState {
 			Coroutine * co;
-			int64_t tick;
 
 			int8_t state;
 			char * msg;
@@ -121,18 +120,23 @@ namespace hyper_net {
 			int32_t fd = 0;
 		};
 
+		struct TimeoutCheck {
+			int32_t idx;
+			uint64_t state;
+			int64_t util;
+
+			olib::AtomicIntrusiveLinkedListHook<TimeoutCheck> next;
+		};
+
 	public:
 		RpcImpl() {
 			SafeMemset(_waits, sizeof(_waits), 0, sizeof(_waits));
 
-			hn_fork [this]{
-				DoClearTimeout();
-			};
+			_clearThread = std::thread(&RpcImpl::DoClearTimeout, this);
 		}
 		~RpcImpl() {
 			_terminate = true;
-			int8_t res;
-			_waitClose >> res;
+			_clearThread.join();
 		}
 
 		inline Service& SetupServiceFd(uint32_t serviceId, int32_t fd) {
@@ -326,17 +330,18 @@ namespace hyper_net {
 				throw RpcLineBrokenException();
 
 			char msg[MAX_PACKET_SIZE];
-			WaitState state{ co, 0, 0, msg, 0 };
+			WaitState state{ co, 0, msg, 0 };
 			
 			RpcHeader& header = *(RpcHeader*)msg;
 			header.op = RpcHeader::OP_REQUEST;
-			header.seq = (uint64_t)&state;
 			header.size = sizeof(RpcHeader) + sizeof(rpcId) + size;
 
 			if (header.size >= MAX_PACKET_SIZE)
 				throw RpcTooLargePacketException();
 
-			if (!SetupWait(&state))
+			header.seq = SetupWait(&state, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + RPC_TIMEOUT);
+
+			if (header.seq == 0)
 				throw RpcException();
 			else {
 				*(int32_t*)(msg + sizeof(RpcHeader)) = rpcId;
@@ -403,31 +408,43 @@ namespace hyper_net {
 		}
 
 		void DoClearTimeout() {
-			int32_t idx = 0;
+			std::multimap<int64_t, TimeoutCheck * > _checks;
 			while (!_terminate) {
-				uint64_t seq = _waits[idx];
-				if (seq != 0) {
+				_waitQueue.SweepOnce([&_checks](TimeoutCheck * u) {
+					_checks.insert(std::make_pair(u->util, u));
+				});
+
+				int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+				auto itr = _checks.begin();
+				while (itr != _checks.end()) {
+					auto check = itr;
+					++itr;
+
+					if (check->first <= now) {
+						uint64_t state = _waits[check->second->idx];
+						if (state == check->second->state) {
 #ifdef WIN32
-					if (InterlockedCompareExchangeNoFence(&_waits[idx], 0, seq) == 0) {
+							if (InterlockedCompareExchangeNoFence(&_waits[check->second->idx], 0, state) == state) {
 #else
-					if (__sync_bool_compare_and_swap(&_waits[idx], seq, 0)) {
+							if (__sync_bool_compare_and_swap(&_waits[idx], seq, 0)) {
 #endif
-						WaitState& state = (*(WaitState*)seq); 
-						state.state = RpcHeader::OP_RESPOND_TIMEOUT;
+								WaitState& state = (*(WaitState*)check->second->state);
+								state.state = RpcHeader::OP_RESPOND_TIMEOUT;
 
-						Scheduler::Instance().AddCoroutine(state.co);
+								Scheduler::Instance().AddCoroutine(state.co);
+							}
+						}
+
+						delete check->second;
+						_checks.erase(check);
 					}
+					else
+						break;
 				}
 
-
-				if (++idx % CHECK_TIMEOUT_COUNT == 0) {
-					hn_sleep CHECK_TIMEOUT_INTERVAL;
-
-					idx = idx % MAX_RPC_SZIE;
-				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(CHECK_TIMEOUT_INTERVAL));
 			}
-
-			_waitClose << (int8_t)1;
 		}
 	
 		inline Service& FindService(uint32_t serviceId) {
@@ -442,35 +459,35 @@ namespace hyper_net {
 			return _null;
 		}
 
-		bool SetupWait(WaitState * state) {
-			uint64_t seq = (uint64_t)state;
+		uint64_t SetupWait(WaitState * state, int64_t check) {
 			uint64_t count = 0;
 			while (count < MAX_TEST_COUNT) {
+				uint64_t seq = _nextSeq++;
+				if (seq == 0)
+					seq = _nextSeq++;
 #ifdef WIN32
-				if (InterlockedCompareExchangeAcquire(&_waits[(seq + count) % MAX_RPC_SZIE], (uint64_t)state, 0) == 0) {
+				if (InterlockedCompareExchangeAcquire(&_waits[seq % MAX_RPC_SZIE], (uint64_t)state, 0) == 0) {
 #else
-				if (__sync_bool_compare_and_swap(&_waits[(seq + count) % MAX_RPC_SZIE], 0, (uint64_t)state)) {
+				if (__sync_bool_compare_and_swap(&_waits[seq % MAX_RPC_SZIE], 0, (uint64_t)state)) {
 #endif
-					return true;
+					TimeoutCheck * unit = new TimeoutCheck{ (seq % MAX_RPC_SZIE), (uint64_t)state, check };
+					_waitQueue.InsertHead(unit);
+					return seq;
 				}
 
 				++count;
 			}
-			return false;
+			return 0;
 		}
 
 		inline WaitState * FindWait(uint64_t seq) {
-			uint64_t count = 0;
-			while (count < MAX_TEST_COUNT) {
+			uint64_t state = _waits[seq % MAX_RPC_SZIE];
 #ifdef WIN32
-				if (InterlockedCompareExchangeNoFence(&_waits[(seq + count) % MAX_RPC_SZIE], 0, seq) == 0) {
+			if (InterlockedCompareExchangeNoFence(&_waits[seq % MAX_RPC_SZIE], 0, state) == state) {
 #else
-				if (__sync_bool_compare_and_swap(&_waits[(seq + count) % MAX_RPC_SZIE], seq, 0)) {
+			if (__sync_bool_compare_and_swap(&_waits[seq % MAX_RPC_SZIE], state, 0)) {
 #endif
-					return (WaitState*)seq;
-				}
-
-				++count;
+				return (WaitState*)state;
 			}
 			return nullptr;
 		}
@@ -481,9 +498,11 @@ namespace hyper_net {
 		std::unordered_map<int32_t, std::function<void(const void * context, int32_t size, RpcRet & ret)>> _cbs;
 
 		uint64_t _waits[MAX_RPC_SZIE];
+		uint64_t _nextSeq = 0;
 
+		std::thread _clearThread;
 		bool _terminate = false;
-		hn_channel<int8_t, 1> _waitClose;
+		olib::AtomicIntrusiveLinkedList<TimeoutCheck, &TimeoutCheck::next> _waitQueue;
 	};
 
 	Rpc::Rpc() {

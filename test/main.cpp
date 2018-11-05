@@ -228,54 +228,40 @@ void test_channel() {
 	ch1.Close();
 }
 
-struct TestDecoder {
-	int32_t CalcEncode(int32_t) {
-		return sizeof(int32_t);
-	}
-
-	bool Encode(int32_t v, void * data, int32_t size) {
-		*(int32_t*)data = v;
-		return true;
-	}
-
-	bool Decode(int32_t& v, const void * data, int32_t size) {
-		v = *(int32_t*)data;
-		return true;
-	}
-};
-
-int32_t DoubleValue(const int32_t& v) {
+int32_t DoubleValue(int32_t v) {
 	return v * 2;
 }
 
 class A {
 public:
-	void Serialize(hyper_net::RpcEncoder& encoder) const {
-		encoder << 2.0;
+	template <typename AR>
+	void Archive(AR & ar) const {
+		ar << 2.0;
 	}
 
-	int32_t invoke( ) {
-		return 1;
+	int32_t invoke() {
+		return 222222;
 	}
 };
 
 void test_rpc_server() {
-	hn_rpc<TestDecoder> rpc;
-	rpc.RegisterFn<int32_t, int32_t>(1, DoubleValue);
+	hn_rpc rpc;
+	rpc.RegisterFn<128>(1, DoubleValue);
 	A a;
-	rpc.Test([&a] ()->int32_t{
-		return 1;
+	rpc.RegisterFn<128>(2, a, &A::invoke);
+	rpc.RegisterFn<128>(3, [](int32_t a, int32_t b)->int32_t {
+		return a + b;
 	});
-	//rpc.Test(DoubleValue);
-	hyper_net::RpcEncoder encoder;
-	encoder << 1;
-	encoder << "abc";
-	encoder << a;
+	rpc.RegisterFn<128>(4, [](int32_t c) {
+		printf("c is %d\n", c);
+	});
+	rpc.RegisterFn<128>(5, []() {
+		printf("test5\n");
+	});
 
-	std::vector<A> va;
-	std::set<A> sa;
-	encoder << va;
-	encoder << sa;
+	rpc.RegisterFn<128>(6, []()->int32_t {
+		return 6;
+	});
 
 	//hyper_net::IsFunctor<decltype(DoubleValue)>::value;
 
@@ -294,10 +280,21 @@ void test_rpc_server() {
 void test_rpc_client() {
 	auto c = hn_connect("127.0.0.1", 9027);
 	if (c > 0) {
-		hn_rpc<TestDecoder> rpc;
+		hn_rpc rpc;
 		rpc.Attach(0, c);
-		int32_t a = rpc.CallR<int32_t, int32_t>(0, 1, 1);
-		printf("a:%d\n", a);
+		int32_t i = rpc.Call<int32_t, 128>(0, 1, 1);
+		int32_t j = rpc.Call<int32_t, 128>(0, 2);
+		int32_t k = rpc.Call<int32_t, 128>(0, 3, 2, 3);
+		rpc.Call<128>(0, 4, 4);
+		rpc.Call<128>(0, 5);
+		int32_t m = rpc.Call<int32_t, 128>(0, 6);
+		try {
+			int32_t n = rpc.Call<int32_t, 128>(0, 5);
+		}
+		catch (hn_rpc_exception & e) {
+			printf("%s\n", e.what());
+		}
+		printf("i %d j %d k %d m %d\n", i, j, k, m);
 	}
 }
 

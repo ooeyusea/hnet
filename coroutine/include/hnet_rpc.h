@@ -1,13 +1,5 @@
 ﻿#ifndef __HNET_RPC_H__
 #define __HNET_RPC_H__
-#include <list>
-#include <set>
-#include <map>
-#include <unordered_set>
-#include <unordered_map>
-#include <deque>
-#include <vector>
-#include <string>
 
 namespace hyper_net {
 	class RpcException : public std::exception {
@@ -45,29 +37,25 @@ namespace hyper_net {
 		RpcImpl * _impl;
 	};
 
-	template <typename R, typename Reader, typename OStream, typename OArchiver, int32_t size>
-	struct Handler {
+	template <int32_t size, typename R>
+	struct FHandler {
 		template <typename... ParsedArgs>
 		struct Dealer {
-			static void invoke(Reader & reader, RpcRet & ret, R(*fn)(ParsedArgs...), ParsedArgs... args) {
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, R(*fn)(ParsedArgs...), ParsedArgs... args) {
 				R r = fn(args...);
 
-#ifndef WIN32
 				char buff[size];
-#else
-				char * buff = (char*)alloc(size);
-#endif
-				OStream stream(buff, size);
-				OArchiver<OStream> ar;
+				OBufferStream stream(buff, size);
+				OArchiver<OBufferStream> ar(stream, 0);
 				ar << r;
 				if (stream.bad())
 					ret.Fail();
 				else
-					ret.Ret(buff, stream.size());
+					ret.Ret(buff, (int32_t)stream.size());
 			}
 
 			template <typename T, typename... Args>
-			static void invoke(Reader & reader, RpcRet & ret, R(*fn)(ParsedArgs..., T, Args...), ParsedArgs... args) {
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, R(*fn)(ParsedArgs..., T, Args...), ParsedArgs... args) {
 				T t;
 				reader >> t;
 				if (reader.Fail()) {
@@ -75,62 +63,188 @@ namespace hyper_net {
 					return;
 				}
 
-				return Dealer<ParsedArgs..., T>::invoke(reader, ret, fn, args..., t);
-			}
-
-			template <typename C>
-			static void invoke(Reader & reader, RpcRet & ret, C c, R(C::*fn)(ParsedArgs...), ParsedArgs... args) {
-				R r = (c.*fn)(args...);
-
-#ifndef WIN32
-				char buff[size];
-#else
-				char * buff = (char*)alloc(size);
-#endif
-				OStream stream(buff, size);
-				OArchiver<OStream> ar;
-				ar << r;
-				if (stream.bad())
-					ret.Fail();
-				else
-					ret.Ret(buff, stream.size());
-			}
-
-			template <typename C, typename T, typename... Args>
-			static R invoke(Reader & reader, RpcRet & ret, C c, R(C::*fn)(ParsedArgs..., T, Args...), ParsedArgs... args) {
-				T t;
-				reader >> t;
-				if (reader.Fail())
-					throw RpcException();
-
-				return Dealer<ParsedArgs..., T>::invoke(reader, c, fn, args..., t);
+				Dealer<ParsedArgs..., T>::invoke(reader, ret, fn, args..., t);
 			}
 		};
 
 		template <typename... Args>
-		static R Deal(Reader & reader, R(*fn)(Args...)) {
-			return Dealer<>::invoke(reader, fn);
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, R(*fn)(Args...)) {
+			Dealer<>::invoke(reader, ret, fn);
 		}
 
-		static R Deal(Reader & reader, R(*fn)()) {
-			return fn();
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, R(*fn)()) {
+			R r = fn();
+
+			char buff[size];
+			OBufferStream stream(buff, size);
+			OArchiver<OBufferStream> ar;
+			ar << r;
+			if (stream.bad())
+				ret.Fail();
+			else
+				ret.Ret(buff, (int32_t)stream.size());
 		}
+	};
+
+	template <int32_t size, typename R>
+	struct CHandler {
+		template <typename... ParsedArgs>
+		struct Dealer {
+			template <typename C>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, R(C::*fn)(ParsedArgs...), ParsedArgs... args) {
+				R r = (c.*fn)(args...);
+
+				char buff[size];
+				OBufferStream stream(buff, size);
+				OArchiver<OBufferStream> ar(stream, 0);
+				ar << r;
+				if (stream.bad())
+					ret.Fail();
+				else
+					ret.Ret(buff, (int32_t)stream.size());
+			}
+
+			template <typename C, typename T, typename... Args>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, R(C::*fn)(ParsedArgs..., T, Args...), ParsedArgs... args) {
+				T t;
+				reader >> t;
+				if (reader.Fail()) {
+					ret.Fail();
+					return;
+				}
+
+				Dealer<ParsedArgs..., T>::invoke(reader, ret, c, fn, args..., t);
+			}
+
+			template <typename C>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, R(C::*fn)(ParsedArgs...) const, ParsedArgs... args) {
+				R r = (c.*fn)(args...);
+
+				char buff[size];
+				OBufferStream stream(buff, size);
+				OArchiver<OBufferStream> ar(stream, 0);
+				ar << r;
+				if (stream.bad())
+					ret.Fail();
+				else
+					ret.Ret(buff, (int32_t)stream.size());
+			}
+
+			template <typename C, typename T, typename... Args>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, R(C::*fn)(ParsedArgs..., T, Args...) const, ParsedArgs... args) {
+				T t;
+				reader >> t;
+				if (reader.Fail()) {
+					ret.Fail();
+					return;
+				}
+
+				Dealer<ParsedArgs..., T>::invoke(reader, ret, c, fn, args..., t);
+			}
+		};
 
 		template <typename C, typename... Args>
-		static R Deal(Reader & reader, C c, R(C::*fn)(Args...)) {
-			return Dealer<>::invoke(reader, c, fn);
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, R(C::*fn)(Args...)) {
+			Dealer<>::invoke(reader, ret, c, fn);
 		}
 
 		template <typename C>
-		static R Deal(Reader & reader, C c, R(C::*fn)()) {
-			return (c.*fn)fn();
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, R(C::*fn)()) {
+			R r = (c.*fn)();
+
+			char buff[size];
+			OBufferStream stream(buff, size);
+			OArchiver<OBufferStream> ar(stream, 0);
+			ar << r;
+			if (stream.bad())
+				ret.Fail();
+			else
+				ret.Ret(buff, (int32_t)stream.size());
+		}
+
+		template <typename C, typename... Args>
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, R(C::*fn)(Args...) const) {
+			Dealer<>::invoke(reader, ret, c, fn);
+		}
+
+		template <typename C>
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, R(C::*fn)() const) {
+			R r = (c.*fn)();
+
+			char buff[size];
+			OBufferStream stream(buff, size);
+			OArchiver<OBufferStream> ar(stream, 0);
+			ar << r;
+			if (stream.bad())
+				ret.Fail();
+			else
+				ret.Ret(buff, (int32_t)stream.size());
+		}
+	};
+
+	template <int32_t size>
+	struct CHandler<size, void> {
+		template <typename... ParsedArgs>
+		struct Dealer {
+			template <typename C>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, void (C::*fn)(ParsedArgs...), ParsedArgs... args) {
+				(c.*fn)(args...);
+			}
+
+			template <typename C, typename T, typename... Args>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, void (C::*fn)(ParsedArgs..., T, Args...), ParsedArgs... args) {
+				T t;
+				reader >> t;
+				if (reader.Fail()) {
+					ret.Fail();
+					return;
+				}
+
+				Dealer<ParsedArgs..., T>::invoke(reader, ret, c, fn, args..., t);
+			}
+
+			template <typename C>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, void (C::*fn)(ParsedArgs...) const, ParsedArgs... args) {
+				(c.*fn)(args...);
+			}
+
+			template <typename C, typename T, typename... Args>
+			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, void (C::*fn)(ParsedArgs..., T, Args...) const, ParsedArgs... args) {
+				T t;
+				reader >> t;
+				if (reader.Fail()) {
+					ret.Fail();
+					return;
+				}
+
+				Dealer<ParsedArgs..., T>::invoke(reader, ret, c, fn, args..., t);
+			}
+		};
+
+		template <typename C, typename... Args>
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, void (C::*fn)(Args...)) {
+			Dealer<>::invoke(reader, ret, c, fn);
+		}
+
+		template <typename C>
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, void (C::*fn)()) {
+			(c.*fn)();
+		}
+
+		template <typename C, typename... Args>
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, void (C::*fn)(Args...) const) {
+			Dealer<>::invoke(reader, ret, c, fn);
+		}
+
+		template <typename C>
+		static void Deal(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, void (C::*fn)() const) {
+			(c.*fn)();
 		}
 	};
 
 	struct FunctionTrait {};
 	struct LamdaTrait {};
 
-	template <typename Decoder>
 	class CoRpc {
 	public:
 		CoRpc() {}
@@ -140,99 +254,88 @@ namespace hyper_net {
 			_impl.Attach(serviceId, fd, context, size);
 		}
 
-		template <typename F>
+		template <int32_t buffSize, typename F>
 		inline void RegisterFn(int32_t rpcId, const F& fn) {
 			typedef typename std::conditional<std::is_function<F>::value, FunctionTrait, LamdaTrait>::type TraitType;
-			RegisterFn(rpcId, fn, TraitType());
+			RegisterFnTrait<buffSize>(rpcId, fn, TraitType());
 		}
 
-		template <typename C, typename R, typename... Args>
-		inline void RegisterFn(int32_t rpcId, const C& c, R(C::* fn)(Args...)) {
+		template <int32_t buffSize, typename C, typename R, typename... Args>
+		inline void RegisterFn(int32_t rpcId, const C & c, R(C::* fn)(Args...) const) {
 			_impl.RegisterFn(rpcId, [c, fn, this](const void * context, int32_t size, RpcRet & ret) {
+				IBufferStream istream((const char*)context, size);
+				IArchiver<IBufferStream> reader(istream, 0);
 
+				CHandler<buffSize, R>::Deal<C, Args...>(reader, ret, c, fn);
 			});
 		}
 
-		template <typename C, typename R, typename... Args>
-		inline void RegisterFn(int32_t rpcId, C& c, R(C::* fn)(Args...)) {
+		template <int32_t buffSize, typename C, typename R, typename... Args>
+		inline void RegisterFn(int32_t rpcId, C & c, R(C::* fn)(Args...)) {
 			_impl.RegisterFn(rpcId, [&c, fn, this](const void * context, int32_t size, RpcRet & ret) {
-
+				IBufferStream istream((const char*)context, size);
+				IArchiver<IBufferStream> reader(istream, 0);
+				CHandler<buffSize, R>::Deal(reader, ret, c, fn);
 			});
 		}
 
-		template <typename R, typename... Args>
-		inline void RegisterFn(int32_t rpcId,  R (* fn)(Args...), const FunctionTrait &) {
+		template <int32_t buffSize, typename R, typename... Args>
+		inline void RegisterFnTrait(int32_t rpcId,  R (* fn)(Args...), const FunctionTrait &) {
 			_impl.RegisterFn(rpcId, [fn, this](const void * context, int32_t size, RpcRet & ret) {
-				
+				IBufferStream istream((const char*)context, size);
+				IArchiver<IBufferStream> reader(istream, 0);
+				FHandler<buffSize, R>::Deal(reader, ret, fn);
 			});
 		}
 
-		template <typename F>
-		inline void RegisterFn(int32_t rpcId, const F& fn, const LamdaTrait &) {
-			RegisterFn(fpcId, fn, F::operator());
+		template <int32_t buffSize, typename F>
+		inline void RegisterFnTrait(int32_t rpcId, const F& fn, const LamdaTrait &) {
+			RegisterFn<buffSize, std::remove_reference_t<std::remove_const_t<F>>>(rpcId, fn, &F::operator());
 		}
 
-		template <typename P, typename R>
-		inline void RegisterFn(int32_t rpcId, const std::function<R (const P& p)>& fn) {
-			_impl.RegisterFn(rpcId, [fn, this](const void * context, int32_t size, RpcRet & ret) {
-				P p;
-				if (_decoder.Decode(p, context, size)) {
-					R r = fn(p);
-					int32_t size = _decoder.CalcEncode(r);
-#ifndef WIN32
-					char data[size];
-#else
-					char * data = (char*)alloca(size);
-#endif
-					if (_decoder.Encode(r, data, size)) {
-						ret.Ret(data, size);
-					}
-					else
-						throw RpcException();
-				}
-				else
-					throw RpcException();
+		inline void Push(OArchiver<OBufferStream> & ar) {
+
+		}
+
+		template <typename T, typename... Args>
+		inline void Push(OArchiver<OBufferStream> & ar, const T& t, Args... args) {
+			ar << t;
+			if (ar.Fail())
+				return;
+
+			Push(ar, args...);
+		}
+
+		template <typename R, int32_t size, typename... Args>
+		inline R Call(int32_t serviceId, int32_t rpcId, Args... args) {
+			char buff[size];
+			OBufferStream stream(buff, size);
+			OArchiver<OBufferStream> ar(stream, 0);
+			Push(ar, args...);
+
+			R r;
+			_impl.Call(serviceId, rpcId, buff, (int32_t)stream.size(), [&r, this](const void * context, int32_t size) -> bool {
+				IBufferStream istream((const char*)context, size);
+				IArchiver<IBufferStream> reader(istream, 0);
+				reader >> r;
+				return !reader.Fail();
 			});
+
+			return r;
 		}
 
-		template <typename P, typename R>
-		inline R CallR(uint32_t serviceId, int32_t rpcId, const P & p) {
-			int32_t size = _decoder.CalcEncode(p);
-#ifndef WIN32
-			char data[size];
-#else
-			char * data = (char*)alloca(size);
-#endif
-			if (_decoder.Encode(p, data, size)) {
-				R r;
-				_impl.Call(serviceId, rpcId, data, size, [&r, this](const void * context, int32_t size) -> bool {
-					return _decoder.Decode(r, context, size);
-				});
+		template <int32_t size, typename... Args>
+		inline void Call(int32_t serviceId, int32_t rpcId, Args... args) {
+			char buff[size];
+			OBufferStream stream(buff, size);
+			OArchiver<OBufferStream> ar(stream, 0);
+			Push(ar, args...);
 
-				return r;
-			}
-			else
-				throw RpcException();
-		}
-
-		template <typename P>
-		inline void Call(uint32_t serviceId, int32_t rpcId, const P & p) {
-			int32_t size = _decoder.CalcEncode(rpcId, p);
-#ifndef WIN32
-			char data[size];
-#else
-			char * data = (char*)alloca(size);
-#endif
-			if (_encoder.Encode(p, data, size)) {
-				_impl.Call(serviceId, rpcId, data, size);
-			}
-			else
-				throw RpcException();
+			_impl.Call(serviceId, rpcId, buff, (int32_t)stream.size());
 		}
 
 	private:
 		Rpc _impl;
-		Decoder _decoder;
 	};
 }
 
