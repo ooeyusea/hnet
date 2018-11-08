@@ -442,6 +442,15 @@ namespace hyper_net {
 		}
 	}
 
+	bool NetEngine::Test(int32_t fd) {
+		Socket& sock = _sockets[fd & MAX_SOCKET];
+		if (sock.fd == fd) {
+			if (!sock.closing)
+				return true;
+		}
+		return false;
+	}
+
 	void NetEngine::ThreadProc(EpollWorker& worker) {
 		epoll_event evs[Options::Instance().GetEpollEventSize()];
 		while (!_terminate) {

@@ -60,6 +60,10 @@ namespace hyper_net {
 		NetEngine::Instance().Shutdown(fd);
 	}
 
+	bool NetAdapter::Test(int32_t fd) {
+		return NetEngine::Instance().Test(fd);
+	}
+
 	int32_t TimeAdapter::operator-(int64_t millisecond) {
 		return TimerMgr::Instance().Sleep(millisecond);
 	}

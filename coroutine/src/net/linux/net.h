@@ -89,6 +89,7 @@ namespace hyper_net {
 
 		void Shutdown(int32_t fd);
 		void Close(int32_t fd);
+		bool Test(int32_t fd);
 
 		void ThreadProc(EpollWorker& worker);
 		void DealConnect(EpollEvent * evt, int32_t flag, int32_t epollFd);

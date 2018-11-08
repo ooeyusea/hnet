@@ -31,9 +31,6 @@ ENDIF(WIN32)
 
 INCLUDE_DIRECTORIES(
     "${PROJECT_SOURCE_DIR}/../../coroutine/include"
-	"${PROJECT_SOURCE_DIR}/../common"
-	"${PROJECT_SOURCE_DIR}/../common/http"
-	"${PROJECT_SOURCE_DIR}/../common/rpc"
 )
 
 LINK_DIRECTORIES(
@@ -46,7 +43,7 @@ SET(SRC
 	"${PROJECT_SOURCE_DIR}/Gate.h"
 	"${PROJECT_SOURCE_DIR}/Session.cpp"
 	"${PROJECT_SOURCE_DIR}/Session.h"
-	"${PROJECT_SOURCE_DIR}/../common/util.h"
+	"${PROJECT_SOURCE_DIR}/util.h"
 )
 
 SOURCE_GROUP(\\ FILES ${SRC})

@@ -13,6 +13,7 @@ namespace hyper_net {
 		void Send(int32_t fd, const char * buf, int32_t size);
 		void Close(int32_t fd);
 		void Shutdown(int32_t fd);
+		bool Test(int32_t fd);
 	};
 }
 
@@ -23,5 +24,6 @@ namespace hyper_net {
 #define hn_send hyper_net::NetAdapter().Send
 #define hn_close hyper_net::NetAdapter().Close
 #define hn_shutdown hyper_net::NetAdapter().Shutdown
+#define hn_test_fd hyper_net::NetAdapter().Test
 
 #endif // !__HNET_NET_H__

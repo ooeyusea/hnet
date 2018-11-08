@@ -3,7 +3,7 @@
 #created:2015-07-08 09:38:00
 
 cmake_minimum_required(VERSION 2.8)
-PROJECT(gate)
+PROJECT(testcase)
 IF(UNIX)
     SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
     SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./")
@@ -34,6 +34,7 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common"
 	"${PROJECT_SOURCE_DIR}/../common/http"
 	"${PROJECT_SOURCE_DIR}/../common/rpc"
+	"${PROJECT_SOURCE_DIR}/../../thirdparty/gtest/googletest/googletest/include"
 )
 
 LINK_DIRECTORIES(
@@ -42,28 +43,25 @@ LINK_DIRECTORIES(
 
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
-	"${PROJECT_SOURCE_DIR}/Gate.cpp"
-	"${PROJECT_SOURCE_DIR}/Gate.h"
-	"${PROJECT_SOURCE_DIR}/Session.cpp"
-	"${PROJECT_SOURCE_DIR}/Session.h"
-	"${PROJECT_SOURCE_DIR}/../common/util.h"
 )
 
 SOURCE_GROUP(\\ FILES ${SRC})
 
-ADD_EXECUTABLE(gate
+ADD_EXECUTABLE(testcase
 	${SRC}
 )
 
 IF(WIN32)
-TARGET_LINK_LIBRARIES(gate
-	"${PROJECT_SOURCE_DIR}/../../bin/$<CONFIGURATION>/hnet.lib"
+TARGET_LINK_LIBRARIES(testcase
+	#"${PROJECT_SOURCE_DIR}/../../bin/$<CONFIGURATION>/hnet.lib"
+	debug "${PROJECT_SOURCE_DIR}/../../thirdparty/gtest/googletest/build/googlemock/gtest/Debug/gtestd.lib"
+	optimized "${PROJECT_SOURCE_DIR}/../../thirdparty/gtest/googletest/build/googlemock/gtest/Release/gtest.lib"
 )
-SET_PROPERTY(TARGET gate PROPERTY FOLDER "chief")
+SET_PROPERTY(TARGET testcase PROPERTY FOLDER "chief")
 ENDIF(WIN32)
 
 IF(UNIX)
-TARGET_LINK_LIBRARIES(gate
+TARGET_LINK_LIBRARIES(testcase
 	"${PROJECT_SOURCE_DIR}/../../bin/libhnet.a"
 	"${PROJECT_SOURCE_DIR}/../../thirdparty/boost/lib/libboost_context.a"
 )

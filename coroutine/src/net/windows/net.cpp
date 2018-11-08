@@ -425,6 +425,15 @@ namespace hyper_net {
 		}
 	}
 
+	bool NetEngine::Test(int32_t fd) {
+		Socket& sock = _sockets[fd & MAX_SOCKET];
+		if (sock.fd == fd) {
+			if (!sock.closed && !sock.closing)
+				return true;
+		}
+		return false;
+	}
+
 	void NetEngine::Close(int32_t fd) {
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
