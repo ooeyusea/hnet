@@ -411,6 +411,9 @@ namespace hyper_net {
 	}
 
 	void NetEngine::Shutdown(int32_t fd) {
+		if (fd <= 0)
+			return;
+
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {
@@ -435,6 +438,9 @@ namespace hyper_net {
 	}
 
 	void NetEngine::Close(int32_t fd) {
+		if (fd <= 0)
+			return;
+
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {

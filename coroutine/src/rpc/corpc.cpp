@@ -161,140 +161,134 @@ namespace hyper_net {
 			return _null;
 		}
 
-		inline void Attach(uint32_t serviceId, int32_t fd, const void * context, int32_t size) {
-			Service& service = SetupServiceFd(serviceId, fd);
-			if (&service == &_null)
+		inline void Start(uint32_t serviceId, int32_t fd, const char * context, int32_t size) {
+			Service& service = FindService(serviceId);
+			if (&service == &_null || service.fd != fd)
 				return;
 
-			std::string buf;
-			if (context != nullptr && size > 0)
-				buf.append((const char*)context, size);
+			char msg[MAX_PACKET_SIZE];
+			int32_t offset = 0;
 
-			hn_fork [this, &service, fd, buf]() {
-				char msg[MAX_PACKET_SIZE];
-				int32_t offset = 0;
-
-				if (!buf.empty()) {
-					offset = buf.size();
-					int32_t pos = 0;
-					while (offset - pos >= sizeof(RpcHeader)) {
-						RpcHeader& header = *(RpcHeader*)(buf.data() + pos);
-						if (offset - pos < header.size) {
-							break;
-						}
-
-						if (header.size > MAX_PACKET_SIZE) {
-							hn_close(fd);
-							return;
-						}
-
-						if (header.op == RpcHeader::OP_PING) {
-							header.op = RpcHeader::OP_PONG;
-							hn_send(fd, (const char*)&header, sizeof(header));
-						}
-						else if (header.op == RpcHeader::OP_REQUEST) {
-							DoRequest(service, header.seq, buf.data() + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
-						}
-						else if (header.op == RpcHeader::OP_RESPOND)
-							DoRespond(header.seq, buf.data() + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
-						else
-							DoRespondFail(header.seq, header.op);
-
-						pos += header.size;
+			if (size > 0) {
+				offset = size;
+				int32_t pos = 0;
+				while (offset - pos >= sizeof(RpcHeader)) {
+					RpcHeader& header = *(RpcHeader*)(context + pos);
+					if (offset - pos < header.size) {
+						break;
 					}
 
-					if (offset > pos) {
-						SafeMemcpy(msg, MAX_PACKET_SIZE, buf.data() + pos, offset - pos);
-						offset -= pos;
-					}
-					else
-						offset = 0;
-				}
-
-				bool stop = false;
-				int64_t activeTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-				hn_channel<int8_t, 1> ch;
-
-				hn_fork [ch, &stop, &activeTick, fd, this]{
-					int64_t sendTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-					while (!stop && !_terminate) {
-						hn_sleep RPC_LINE_CHECK_INTERVAL;
-
-						int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-						if (now - activeTick > RPC_LINE_TIMEOUT) {
-							break;
-						}
-
-						if (now - sendTick >= RPC_LINE_HEARBEAT_INTERVAL) {
-							RpcHeader header;
-							header.size = sizeof(header);
-							header.op = RpcHeader::OP_PING;
-
-							hn_send(fd, (const char*)&header, sizeof(header));
-						}
-					}
-
-					hn_shutdown(fd);
-					ch << (int8_t)1;
-				};
-
-				while (true) {
-					int32_t len = hn_recv(fd, msg + offset, MAX_PACKET_SIZE - offset);
-					if (len < 0) {
+					if (header.size > MAX_PACKET_SIZE) {
 						hn_close(fd);
-						break;
+						return;
 					}
 
-					offset += len;
-
-					bool invalid = false;
-					int32_t pos = 0;
-					while (offset - pos >= sizeof(RpcHeader)) {
-						RpcHeader& header = *(RpcHeader*)(msg + pos);
-						if (offset - pos < header.size) {
-							break;
-						}
-
-						if (header.size > MAX_PACKET_SIZE) {
-							invalid = true;
-							break;
-						}
-
-						if (header.op == RpcHeader::OP_PING) {
-							header.op = RpcHeader::OP_PONG;
-							hn_send(fd, (const char*)&header, sizeof(header));
-						}
-						else if (header.op == RpcHeader::OP_PONG) {
-							activeTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-						}
-						else if (header.op == RpcHeader::OP_REQUEST) {
-							DoRequest(service, header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
-						}
-						else if (header.op == RpcHeader::OP_RESPOND) {
-							DoRespond(header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
-						}
-						else
-							DoRespondFail(header.seq, header.op);
-
-						pos += header.size;
+					if (header.op == RpcHeader::OP_PING) {
+						header.op = RpcHeader::OP_PONG;
+						hn_send(fd, (const char*)&header, sizeof(header));
 					}
-
-					if (invalid)
-						break;
-
-					if (offset > pos) {
-						::memmove(msg, msg + pos, offset - pos);
-						offset -= pos;
+					else if (header.op == RpcHeader::OP_REQUEST) {
+						DoRequest(service, header.seq, context + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
 					}
+					else if (header.op == RpcHeader::OP_RESPOND)
+						DoRespond(header.seq, context + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
 					else
-						offset = 0;
+						DoRespondFail(header.seq, header.op);
+
+					pos += header.size;
 				}
 
-				stop = true;
+				if (offset > pos) {
+					SafeMemcpy(msg, MAX_PACKET_SIZE, context + pos, offset - pos);
+					offset -= pos;
+				}
+				else
+					offset = 0;
+			}
 
-				int8_t res = 0;
-				ch >> res;
+			bool stop = false;
+			int64_t activeTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			hn_channel<int8_t, 1> ch;
+
+			hn_fork [ch, &stop, &activeTick, fd, this]{
+				int64_t sendTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+				while (!stop && !_terminate) {
+					hn_sleep RPC_LINE_CHECK_INTERVAL;
+
+					int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+					if (now - activeTick > RPC_LINE_TIMEOUT) {
+						break;
+					}
+
+					if (now - sendTick >= RPC_LINE_HEARBEAT_INTERVAL) {
+						RpcHeader header;
+						header.size = sizeof(header);
+						header.op = RpcHeader::OP_PING;
+
+						hn_send(fd, (const char*)&header, sizeof(header));
+					}
+				}
+
+				hn_shutdown(fd);
+				ch << (int8_t)1;
 			};
+
+			while (true) {
+				int32_t len = hn_recv(fd, msg + offset, MAX_PACKET_SIZE - offset);
+				if (len < 0) {
+					hn_close(fd);
+					break;
+				}
+
+				offset += len;
+
+				bool invalid = false;
+				int32_t pos = 0;
+				while (offset - pos >= sizeof(RpcHeader)) {
+					RpcHeader& header = *(RpcHeader*)(msg + pos);
+					if (offset - pos < header.size) {
+						break;
+					}
+
+					if (header.size > MAX_PACKET_SIZE) {
+						invalid = true;
+						break;
+					}
+
+					if (header.op == RpcHeader::OP_PING) {
+						header.op = RpcHeader::OP_PONG;
+						hn_send(fd, (const char*)&header, sizeof(header));
+					}
+					else if (header.op == RpcHeader::OP_PONG) {
+						activeTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+					}
+					else if (header.op == RpcHeader::OP_REQUEST) {
+						DoRequest(service, header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
+					}
+					else if (header.op == RpcHeader::OP_RESPOND) {
+						DoRespond(header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
+					}
+					else
+						DoRespondFail(header.seq, header.op);
+
+					pos += header.size;
+				}
+
+				if (invalid)
+					break;
+
+				if (offset > pos) {
+					::memmove(msg, msg + pos, offset - pos);
+					offset -= pos;
+				}
+				else
+					offset = 0;
+			}
+
+			stop = true;
+
+			int8_t res = 0;
+			ch >> res;
 		}
 
 		inline void RegisterFn(int32_t rpcId, const std::function<void(const void * context, int32_t size, RpcRet & ret)>& fn) {
@@ -513,8 +507,12 @@ namespace hyper_net {
 		delete _impl;
 	}
 
-	void Rpc::Attach(uint32_t serviceId, int32_t fd, const void * context, int32_t size) {
-		_impl->Attach(serviceId, fd, context, size);
+	void Rpc::Attach(uint32_t serviceId, int32_t fd) {
+		_impl->SetupServiceFd(serviceId, fd);
+	}
+
+	void Rpc::Start(uint32_t serviceId, int32_t fd, const char * context, int32_t size) {
+		_impl->Start(serviceId, fd, context, size);
 	}
 
 	void Rpc::RegisterFn(int32_t rpcId, const std::function<void(const void * context, int32_t size, RpcRet & ret)>& fn) {

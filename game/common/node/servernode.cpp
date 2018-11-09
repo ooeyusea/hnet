@@ -4,6 +4,7 @@
 #include "argument.h"
 #include <set>
 #include <vector>
+#define RECONNECT_INVERVAL 1000
 
 struct ClusterServer {
 	int8_t type;
@@ -56,8 +57,11 @@ bool Cluster::Start() {
 		return false;
 	}
 
-	if (listenPort > 0)
-		ProvideService(listenPort);
+	if (listenPort > 0) {
+		if (!ProvideService(listenPort)) {
+			return false;
+		}
+	}
 
 	for (auto& server : connectServers)
 		RequestSevice(server.type, server.id, server.ip, server.port);
@@ -65,18 +69,65 @@ bool Cluster::Start() {
 	return true;
 }
 
-void Cluster::RegisterServiceOpen(const std::function<void(int8_t service, int16_t id)>& f) {
+bool Cluster::ProvideService(int32_t port) {
+	int32_t listenFd = hn_listen("0.0.0.0", port);
+	if (!listenFd) {
+		return false;
+	}
 
-}
+	while (!_terminate) {
+		int32_t fd = hn_accept(listenFd);
+		if (fd > 0) {
+			hn_fork [fd, this]{
+				char buff[sizeof(int32_t)];
+				int32_t& serviceId = *(int32_t*)buff;
 
-void Cluster::RegisterServiceClose(const std::function<void(int8_t service, int16_t id)>& f) {
+				int32_t pos = 0;
+				while (pos < sizeof(buff)) {
+					int32_t len = hn_recv(fd, buff + pos, sizeof(buff) - pos);
+					if (len < 0)
+						return;
 
-}
+					pos += len;
+				}
 
-void Cluster::ProvideService(int32_t port) {
+				_rpc.Attach(serviceId, fd);
 
+				for (auto& f : _openListeners) {
+					f((serviceId >> 16) & 0xFF, serviceId & 0xFFFF);
+				}
+
+				_rpc.Start(serviceId, fd);
+
+				for (auto& f : _closeListeners) {
+					f((serviceId >> 16) & 0xFF, serviceId & 0xFFFF);
+				}
+			};
+		}
+	}
+
+	return true;
 }
 
 void Cluster::RequestSevice(int8_t service, int16_t id, const std::string& ip, int32_t port) {
+	hn_fork [this, service, id, ip, port]{
+		while (!_terminate) {
+			int32_t fd = hn_connect(ip.c_str(), port);
+			if (fd > 0) {
+				_rpc.Attach(ServiceId(service, id), fd);
 
+				for (auto& f : _openListeners) {
+					f(service, id);
+				}
+
+				_rpc.Start(ServiceId(service, id), fd);
+
+				for (auto& f : _closeListeners) {
+					f(service, id);
+				}
+			}
+
+			hn_sleep RECONNECT_INVERVAL;
+		}
+	};
 }

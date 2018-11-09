@@ -28,7 +28,8 @@ namespace hyper_net {
 		Rpc();
 		~Rpc();
 
-		void Attach(uint32_t serviceId, int32_t fd, const void * context, int32_t size);
+		void Attach(uint32_t serviceId, int32_t fd);
+		void Start(uint32_t serviceId, int32_t fd, const char * context, int32_t size);
 		void RegisterFn(int32_t rpcId, const std::function<void(const void * context, int32_t size, RpcRet & ret)>& fn);
 		void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size);
 		void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size, const std::function<bool(const void * data, int32_t size)>& fn);
@@ -250,8 +251,12 @@ namespace hyper_net {
 		CoRpc() {}
 		~CoRpc() {}
 
-		inline void Attach(uint32_t serviceId, int32_t fd, const void * context = nullptr, int32_t size = 0) {
-			_impl.Attach(serviceId, fd, context, size);
+		inline void Attach(uint32_t serviceId, int32_t fd) {
+			_impl.Attach(serviceId, fd);
+		}
+
+		inline void Start(uint32_t serviceId, int32_t fd, const char * context = nullptr, int32_t size = 0) {
+			_impl.Start(serviceId, fd, context, size);
 		}
 
 		template <int32_t buffSize, typename F>

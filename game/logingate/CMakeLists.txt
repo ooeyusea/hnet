@@ -35,6 +35,9 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common/http"
 	"${PROJECT_SOURCE_DIR}/../common/argument"
 	"${PROJECT_SOURCE_DIR}/../common/websocket"
+	"${PROJECT_SOURCE_DIR}/../common/sha1"
+	"${PROJECT_SOURCE_DIR}/../common/md5"
+	"${PROJECT_SOURCE_DIR}/../common/base64"
 	"${PROJECT_SOURCE_DIR}/../common/node"
 	"${PROJECT_SOURCE_DIR}/../common/xml"
 	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml"
@@ -59,9 +62,29 @@ SET(WEBSOCKET
 	"${PROJECT_SOURCE_DIR}/../common/websocket/websocket.cpp"
 )
 
+SET(WS_SHA1
+	"${PROJECT_SOURCE_DIR}/../common/sha1/sha1.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/sha1/sha1.h"
+)
+
+SET(WS_MD5
+	"${PROJECT_SOURCE_DIR}/../common/md5/md5.c"
+	"${PROJECT_SOURCE_DIR}/../common/md5/md5.h"
+	"${PROJECT_SOURCE_DIR}/../common/md5/md5.hpp"
+)
+
+SET(WS_BASE64
+	"${PROJECT_SOURCE_DIR}/../common/base64/base64.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/base64/base64.h"
+)
+
 SET(SERVERNODE
 	"${PROJECT_SOURCE_DIR}/../common/node/servernode.h"
 	"${PROJECT_SOURCE_DIR}/../common/node/servernode.cpp"
+)
+
+SET(GATE
+	"${PROJECT_SOURCE_DIR}/../common/gate/gate.h"
 )
 
 SET(XML
@@ -93,18 +116,26 @@ SOURCE_GROUP(\\ FILES ${SRC})
 SOURCE_GROUP(http FILES ${HTTP})
 SOURCE_GROUP(argument FILES ${ARGUMENT})
 SOURCE_GROUP(websocket FILES ${WEBSOCKET})
+SOURCE_GROUP(sha1 FILES ${WS_SHA1})
+SOURCE_GROUP(md5 FILES ${WS_MD5})
+SOURCE_GROUP(base64 FILES ${WS_BASE64})
 SOURCE_GROUP(node FILES ${SERVERNODE})
 SOURCE_GROUP(xml FILES ${XML})
 SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
+SOURCE_GROUP(gate FILES ${GATE})
 
 ADD_EXECUTABLE(logingate
 	${SRC}
 	${HTTP}
 	${ARGUMENT}
 	${WEBSOCKET}
+	${WS_SHA1}
+	${WS_MD5}
+	${WS_BASE64}
 	${SERVERNODE}
 	${XML}
 	${TINYXML}
+	${GATE}
 )
 
 IF(WIN32)
