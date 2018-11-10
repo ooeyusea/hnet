@@ -2,9 +2,22 @@
 #include "sha1.h"
 #include "base64.h"
 
+#define SINGLE_PACKET_SIZE 4096
+#define PACKET_BUFF_SIZE (SINGLE_PACKET_SIZE * 4)
+
 namespace websocket {
+	WebSocket::WebSocket(int32_t fd) : _fd(fd) {
+		_singlePacket = new char[SINGLE_PACKET_SIZE];
+		_buff = new char[PACKET_BUFF_SIZE];
+	}
+
+	WebSocket::~WebSocket() {
+		delete _singlePacket;
+		delete _buff;
+	}
+
 	bool WebSocket::ShakeHands() {
-		char msg[8192];
+		char msg[SINGLE_PACKET_SIZE];
 		int32_t pos = 0;
 		int32_t len = hn_recv(_fd, msg + pos, sizeof(msg) - pos);
 		while (len > 0) {
@@ -13,7 +26,7 @@ namespace websocket {
 			if (OPENING_FRAME != ParseHandshake((uint8_t*)msg, pos)) {
 
 				std::string anwser = AnswerHandshake();
-				hn_send(_fd, anwser.data(), anwser.size());
+				hn_send(_fd, anwser.data(), (int32_t)anwser.size());
 				return true;
 			}
 
@@ -24,11 +37,105 @@ namespace websocket {
 	}
 
 	const char * WebSocket::ReadFrame(int32_t & size) {
+		while (true) {
+			if (_waitParsed) {
+				Frame frame;
+				auto ret = ParseFrame((uint8_t*)_buff + _parsePos, _recvPos - _parsePos, frame);
+				if (ret != INCOMPLETE_FRAME && ret != ERROR_FRAME)
+					_parsePos += frame.size;
+
+				if (ret != INCOMPLETE_FRAME && ret != INCOMPLETE_TEXT_FRAME && ret != INCOMPLETE_BINARY_FRAME) {
+					switch (ret) {
+					case ERROR_FRAME: Shutdown(); return nullptr;
+					case CLOSING_FRAME: Close(); return nullptr;
+					case PING_FRAME: AnwserPongFrame(frame);  break;
+					case PONG_FRAME: break;
+					case TEXT_FRAME:
+					case BINARY_FRAME: {
+							if (_appendPos > 0) {
+								memcpy(_singlePacket + _appendPos, frame.payload, frame.payloadSize);
+								_appendPos += frame.payloadSize;
+								size = _appendPos;
+								_appendPos = 0;
+								return _singlePacket;
+							}
+							else {
+								size = frame.payloadSize;
+								return frame.payload;
+							}
+						}
+						break;
+					}
+				}
+				else {
+					if (ret == INCOMPLETE_TEXT_FRAME || ret == INCOMPLETE_BINARY_FRAME) {
+						if (_appendPos + frame.payloadSize > SINGLE_PACKET_SIZE) {
+							Shutdown(); 
+							return nullptr;
+						}
+
+						memcpy(_singlePacket + _appendPos, frame.payload, frame.payloadSize);
+						_appendPos += frame.payloadSize;
+					}
+					else {
+						_waitParsed = false;
+
+						if (_recvPos > _parsePos) {
+							memmove(_buff, _buff + _parsePos, _recvPos - _parsePos);
+							_recvPos -= _parsePos;
+						}
+						else
+							_recvPos = 0;
+					}
+				}
+			}
+
+			if (!_waitParsed) {
+				int32_t len = hn_recv(_fd, _buff + _recvPos, PACKET_BUFF_SIZE - _recvPos);
+				if (len <= 0) {
+					Shutdown();
+					return nullptr;
+				}
+
+				_recvPos += len;
+			}
+		}
+
 		return nullptr;
 	}
 
 	void WebSocket::SendFrame(const char * data, int32_t size) {
+#ifdef WIN32
+		uint8_t * buffer = (uint8_t *)alloca(size + 32);
+#else
+		uint8_t buffer[size + 32];
+#endif
+		
+		int32_t pos = 0;
+		buffer[pos++] = 0x02;
 
+		if (size <= 125) {
+			buffer[pos++] = size;
+		}
+		else if (size <= 65535) {
+			buffer[pos++] = 126;
+
+			buffer[pos++] = (size >> 8) & 0xFF;
+			buffer[pos++] = size & 0xFF;
+		}
+		else {
+			buffer[pos++] = 127;
+
+			for (int i = 3; i >= 0; i--) {
+				buffer[pos++] = 0;
+			}
+
+			for (int i = 3; i >= 0; i--) {
+				buffer[pos++] = ((size >> 8 * i) & 0xFF);
+			}
+		}
+		memcpy((void*)(buffer + pos), data, size);
+		hn_send(_fd, (const char *)buffer, size + pos);
 	}
 
 	void WebSocket::Close() {
@@ -44,7 +151,7 @@ namespace websocket {
 
 	WebSocketFrameType WebSocket::ParseHandshake(uint8_t * input_frame, int32_t input_len) {
 		std::string headers((char*)input_frame, input_len);
-		int header_end = headers.find("\r\n\r\n");
+		std::string::size_type header_end = headers.find("\r\n\r\n");
 
 		if (header_end == std::string::npos) { // end-of-headers not found - do not parse
 			return INCOMPLETE_FRAME;
@@ -52,7 +159,7 @@ namespace websocket {
 
 		headers.resize(header_end); // trim off any data we don't need after the headers
 		std::vector<std::string> headers_rows = Explode(headers, "\r\n");
-		for (int i = 0; i < headers_rows.size(); i++) {
+		for (int32_t i = 0; i < headers_rows.size(); i++) {
 			std::string& header = headers_rows[i];
 			if (header.find("GET") == 0) {
 				std::vector<std::string> get_tokens = Explode(header, " ");
@@ -61,7 +168,7 @@ namespace websocket {
 				}
 			}
 			else {
-				int pos = header.find(":");
+				std::string::size_type pos = header.find(":");
 				if (pos != std::string::npos) {
 					std::string header_key(header, 0, pos);
 					std::string header_value(header, pos + 1);
@@ -96,12 +203,12 @@ namespace websocket {
 			accept_key += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"; //RFC6544_MAGIC_KEY
 
 			SHA1 sha;
-			sha.Input(accept_key.data(), accept_key.size());
+			sha.Input(accept_key.data(), (uint32_t)accept_key.size());
 			sha.Result((unsigned*)digest);
 
 			//little endian to big endian
-			for (int i = 0; i<20; i += 4) {
-				unsigned char c;
+			for (int32_t i = 0; i<20; i += 4) {
+				uint8_t c;
 
 				c = digest[i];
 				digest[i] = digest[i + 3];
@@ -112,7 +219,7 @@ namespace websocket {
 				digest[i + 2] = c;
 			}
 
-			accept_key = base64_encode((const unsigned char *)digest, 20); //160bit = 20 bytes/chars
+			accept_key = base64_encode((const uint8_t *)digest, 20); //160bit = 20 bytes/chars
 
 			answer += "Sec-WebSocket-Accept: " + (accept_key)+"\r\n";
 		}
@@ -123,6 +230,83 @@ namespace websocket {
 		answer += "\r\n";
 
 		return std::move(answer);
+	}
+
+	WebSocketFrameType WebSocket::ParseFrame(uint8_t* buff, int32_t len, Frame& frame) {
+		if (len < 3)
+			return INCOMPLETE_FRAME;
+
+		uint8_t msg_opcode = buff[0] & 0x0F;
+		uint8_t msg_fin = (buff[0] >> 7) & 0x01;
+		uint8_t msg_masked = (buff[1] >> 7) & 0x01;
+
+		int32_t payload_length = 0;
+		int32_t pos = 2;
+		int32_t length_field = buff[1] & (~0x80);
+		uint32_t mask = 0;
+
+		if (length_field <= 125) {
+			payload_length = length_field;
+		}
+		else if (length_field == 126) { //msglen is 16bit!
+			//payload_length = buff[2] + (buff[3]<<8);
+			payload_length = (
+				(buff[2] << 8) |
+				(buff[3])
+				);
+			pos += 2;
+		}
+		else if (length_field == 127) { //msglen is 64bit!
+			payload_length = (
+				(buff[2] << 56) |
+				(buff[3] << 48) |
+				(buff[4] << 40) |
+				(buff[5] << 32) |
+				(buff[6] << 24) |
+				(buff[7] << 16) |
+				(buff[8] << 8) |
+				(buff[9])
+				);
+			pos += 8;
+		}
+
+		if (len < payload_length + pos) {
+			return INCOMPLETE_FRAME;
+		}
+
+		if (msg_masked) {
+			mask = *((unsigned int*)(buff + pos));
+			pos += 4;
+
+			uint8_t* c = buff + pos;
+			for (int32_t i = 0; i < payload_length; i++) {
+				c[i] = c[i] ^ ((uint8_t*)(&mask))[i % 4];
+			}
+		}
+
+		frame.start = (const char *)buff;
+		frame.size = pos + payload_length;
+		frame.payload = (const char *)buff + pos;
+		frame.payloadSize = payload_length;
+
+		if (msg_opcode == 0x0)
+			return (msg_fin) ? TEXT_FRAME : INCOMPLETE_TEXT_FRAME;
+		if (msg_opcode == 0x1)
+			return (msg_fin) ? TEXT_FRAME : INCOMPLETE_TEXT_FRAME;
+		if (msg_opcode == 0x2)
+			return (msg_fin) ? BINARY_FRAME : INCOMPLETE_BINARY_FRAME;
+		if (msg_opcode == 0x9)
+			return PING_FRAME;
+		if (msg_opcode == 0xA)
+			return PONG_FRAME;
+
+		return ERROR_FRAME;
+	}
+
+	void WebSocket::AnwserPongFrame(const Frame & frame) {
+		uint8_t* buff = (uint8_t*)frame.start;
+		buff[0] = ((buff[0] & 0xF0) | 0x0A);
+		hn_send(_fd, frame.start, frame.size);
 	}
 
 	std::string WebSocket::Trim(std::string && str) {

@@ -22,10 +22,20 @@ namespace websocket {
 		PONG_FRAME = 0x1A
 	};
 
+	struct Frame {
+		const char * start;
+		int32_t size;
+
+
+
+		const char * payload;
+		int32_t payloadSize;
+	};
+
 	class WebSocket {
 	public:
-		WebSocket(int32_t fd) : _fd(fd) {}
-		~WebSocket() {}
+		WebSocket(int32_t fd);
+		~WebSocket();
 
 		bool ShakeHands();
 		const char * ReadFrame(int32_t & size);
@@ -47,6 +57,8 @@ namespace websocket {
 	private:
 		WebSocketFrameType ParseHandshake(uint8_t * input_frame, int32_t input_len);
 		std::string AnswerHandshake();
+		WebSocketFrameType ParseFrame(uint8_t* buff, int32_t len, Frame& frame);
+		void AnwserPongFrame(const Frame & frame);
 
 		std::string Trim(std::string && str);
 		std::vector<std::string> Explode(const std::string& theString, const char * theDelimiter, bool theIncludeEmptyStrings = false);
@@ -55,7 +67,12 @@ namespace websocket {
 		int32_t _fd;
 
 		char * _singlePacket;
+		int32_t _appendPos = 0;
+
 		char * _buff;
+		int32_t _recvPos = 0;
+		int32_t _parsePos = 0;
+		bool _waitParsed = false;
 
 		std::string _resource;
 		std::string _host;

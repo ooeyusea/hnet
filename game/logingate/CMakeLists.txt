@@ -110,6 +110,7 @@ SET(SRC
 	"${PROJECT_SOURCE_DIR}/../common/util.h"
 	"${PROJECT_SOURCE_DIR}/../common/nodedefine.h"
 	"${PROJECT_SOURCE_DIR}/../common/rpcdefine.h"
+	"${PROJECT_SOURCE_DIR}/../common/clientdefine.h"
 )
 
 SOURCE_GROUP(\\ FILES ${SRC})

@@ -1,7 +1,6 @@
 #ifndef _RPCDEFINE_H__
 #define _RPCDEFINE_H__
 #include "hnet.h"
-#include <chrono>
 
 namespace rpc_def {
 	enum {

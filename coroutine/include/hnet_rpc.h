@@ -319,8 +319,8 @@ namespace hyper_net {
 			Push(ar, args...);
 
 			R r;
-			_impl.Call(serviceId, rpcId, buff, (int32_t)stream.size(), [&r, this](const void * context, int32_t size) -> bool {
-				IBufferStream istream((const char*)context, size);
+			_impl.Call(serviceId, rpcId, buff, (int32_t)stream.size(), [&r, this](const void * context, int32_t len) -> bool {
+				IBufferStream istream((const char*)context, len);
 				IArchiver<IBufferStream> reader(istream, 0);
 				reader >> r;
 				return !reader.Fail();

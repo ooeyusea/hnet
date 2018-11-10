@@ -21,6 +21,17 @@ public:
 	bool Auth();
 	bool BindAccount();
 
+	template <typename T>
+	void Send(int32_t msgId, int32_t version, T& t) {
+		char buff[MAX_SESSION_BUFF_SIZE];
+		hn_ostream stream(buff, MAX_SESSION_BUFF_SIZE);
+		hn_oachiver ar(stream, version);
+		ar << t;
+
+		if (!ar.Fail())
+			_socket.SendFrame(buff, stream.size());
+	}
+
 private:
 	websocket::WebSocket _socket;
 	std::string _ip;
