@@ -14,10 +14,11 @@ void start(int32_t argc, char ** argv) {
 		return;
 	}
 
-	if (!Cluster::Instance().Start())
-		return;
+	if (gate.Start()) {
+		if (!Cluster::Instance().Start())
+			return;
 
-	if (gate.Start())
 		gate.Run();
-	gate.Release();
+		gate.Release();
+	}
 }

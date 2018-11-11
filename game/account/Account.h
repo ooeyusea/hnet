@@ -1,11 +1,11 @@
-#ifndef __GATE_H__
-#define __GATE_H__
+#ifndef __ACCOUNT_H__
+#define __ACCOUNT_H__
 #include "hnet.h"
 
-class Gate {
+class Account {
 public:
-	Gate() {}
-	~Gate() {}
+	Account() {}
+	~Account() {}
 
 	bool Start();
 	void Run();
@@ -17,4 +17,4 @@ private:
 	hn_channel<int8_t, 1> _closeCh;
 };
 
-#endif //__GATE_H__
+#endif //__ACCOUNT_H__

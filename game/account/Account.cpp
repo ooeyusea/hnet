@@ -1,43 +1,19 @@
-#include "Gate.h"
-#include "Session.h"
+#include "Account.h"
 #include "util.h"
 
-bool Gate::Start() {
-	_listenFd = hn_listen("127.0.0.1", 9025);
-	if (_listenFd < 0)
-		return false;
-
+bool Account::Start() {
 	return true;
 }
 
-void Gate::Run() {
-	auto co = util::DoWork([this] {
-		while (true) {
-			char ipStr[64] = { 0 };
-			int32_t port = 0;
-			int32_t fd = hn_accept(_listenFd, ipStr, sizeof(ipStr) - 1, &port);
-			if (fd < 0)
-				break;
-
-			std::string ip = ipStr;
-			hn_fork [fd, ip, port]() {
-				Session object(fd, ip, port);
-				object.Start();
-			};
-		}
-	});
-
+void Account::Run() {
 	int8_t res;
 	_closeCh >> res;
-
-	hn_close(_listenFd);
-	co.Wait();
 }
 
-void Gate::Release() {
+void Account::Release() {
 
 }
 
-void Gate::Terminate() {
+void Account::Terminate() {
 	_closeCh.TryPush(1);
 }

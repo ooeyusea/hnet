@@ -3,7 +3,7 @@
 #created:2015-07-08 09:38:00
 
 cmake_minimum_required(VERSION 2.8)
-PROJECT(gate)
+PROJECT(account)
 IF(UNIX)
     SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
     SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./")
@@ -31,36 +31,79 @@ ENDIF(WIN32)
 
 INCLUDE_DIRECTORIES(
     "${PROJECT_SOURCE_DIR}/../../coroutine/include"
+	"${PROJECT_SOURCE_DIR}/../common"
+	"${PROJECT_SOURCE_DIR}/../common/http"
+	"${PROJECT_SOURCE_DIR}/../common/argument"
+	"${PROJECT_SOURCE_DIR}/../common/websocket"
+	"${PROJECT_SOURCE_DIR}/../common/sha1"
+	"${PROJECT_SOURCE_DIR}/../common/md5"
+	"${PROJECT_SOURCE_DIR}/../common/base64"
+	"${PROJECT_SOURCE_DIR}/../common/node"
+	"${PROJECT_SOURCE_DIR}/../common/xml"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml"
 )
 
 LINK_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../../thirdparty/boost/lib"
 )
 
+SET(ARGUMENT
+	"${PROJECT_SOURCE_DIR}/../common/argument/argument.h"
+	"${PROJECT_SOURCE_DIR}/../common/argument/argument.cpp"
+)
+
+SET(SERVERNODE
+	"${PROJECT_SOURCE_DIR}/../common/node/servernode.h"
+	"${PROJECT_SOURCE_DIR}/../common/node/servernode.cpp"
+)
+
+SET(XML
+	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.h"
+	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.cpp"
+)
+
+SET(TINYXML
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinystr.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinystr.h"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxml.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxml.h"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxmlerror.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxmlparser.cpp"
+)
+
+
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
-	"${PROJECT_SOURCE_DIR}/Gate.cpp"
-	"${PROJECT_SOURCE_DIR}/Gate.h"
-	"${PROJECT_SOURCE_DIR}/Session.cpp"
-	"${PROJECT_SOURCE_DIR}/Session.h"
-	"${PROJECT_SOURCE_DIR}/util.h"
+	"${PROJECT_SOURCE_DIR}/Account.cpp"
+	"${PROJECT_SOURCE_DIR}/Account.h"
+	"${PROJECT_SOURCE_DIR}/../common/util.h"
+	"${PROJECT_SOURCE_DIR}/../common/nodedefine.h"
+	"${PROJECT_SOURCE_DIR}/../common/rpcdefine.h"
 )
 
 SOURCE_GROUP(\\ FILES ${SRC})
+SOURCE_GROUP(argument FILES ${ARGUMENT})
+SOURCE_GROUP(node FILES ${SERVERNODE})
+SOURCE_GROUP(xml FILES ${XML})
+SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
 
-ADD_EXECUTABLE(gate
+ADD_EXECUTABLE(account
 	${SRC}
+	${ARGUMENT}
+	${SERVERNODE}
+	${XML}
+	${TINYXML}
 )
 
 IF(WIN32)
-TARGET_LINK_LIBRARIES(gate
+TARGET_LINK_LIBRARIES(account
 	"${PROJECT_SOURCE_DIR}/../../bin/$<CONFIGURATION>/hnet.lib"
 )
-SET_PROPERTY(TARGET gate PROPERTY FOLDER "chief")
+SET_PROPERTY(TARGET account PROPERTY FOLDER "chief")
 ENDIF(WIN32)
 
 IF(UNIX)
-TARGET_LINK_LIBRARIES(gate
+TARGET_LINK_LIBRARIES(account
 	"${PROJECT_SOURCE_DIR}/../../bin/libhnet.a"
 	"${PROJECT_SOURCE_DIR}/../../thirdparty/boost/lib/libboost_context.a"
 )
