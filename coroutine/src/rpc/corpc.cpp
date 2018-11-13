@@ -62,7 +62,7 @@ namespace hyper_net {
 				RpcHeader& header = *(RpcHeader*)msg;
 				header.op = RpcHeader::OP_RESPOND;
 				header.seq = _seq;
-				header.size = sizeof(RpcHeader) + size;
+				header.size = (int16_t)(sizeof(RpcHeader) + size);
 
 				if (header.size >= MAX_PACKET_SIZE)
 					throw RpcTooLargePacketException();
@@ -125,7 +125,7 @@ namespace hyper_net {
 			uint64_t state;
 			int64_t util;
 
-			olib::AtomicIntrusiveLinkedListHook<TimeoutCheck> next;
+			AtomicIntrusiveLinkedListHook<TimeoutCheck> next;
 		};
 
 	public:
@@ -304,7 +304,7 @@ namespace hyper_net {
 			RpcHeader& header = *(RpcHeader*)msg;
 			header.op = RpcHeader::OP_REQUEST;
 			header.seq = 0;
-			header.size = sizeof(RpcHeader) + sizeof(rpcId) + size;
+			header.size = (int16_t)(sizeof(RpcHeader) + sizeof(rpcId) + size);
 
 			if (header.size >= MAX_PACKET_SIZE)
 				throw RpcTooLargePacketException();
@@ -328,7 +328,7 @@ namespace hyper_net {
 			
 			RpcHeader& header = *(RpcHeader*)msg;
 			header.op = RpcHeader::OP_REQUEST;
-			header.size = sizeof(RpcHeader) + sizeof(rpcId) + size;
+			header.size = (int16_t)(sizeof(RpcHeader) + sizeof(rpcId) + size);
 
 			if (header.size >= MAX_PACKET_SIZE)
 				throw RpcTooLargePacketException();
@@ -367,14 +367,14 @@ namespace hyper_net {
 					if (seq != 0)
 						ret._impl->BindSequence(&service.fd, seq);
 
-					fn(buf.data(), buf.size(), ret);
+					fn(buf.data(), (int32_t)buf.size(), ret);
 				};
 			}
 			else if (seq != 0) {
 				RpcHeader header;
 				header.op = RpcHeader::OP_RESPOND_NO_FUNC;
 				header.seq = 0;
-				header.size = sizeof(RpcHeader) + sizeof(rpcId) + size;
+				header.size = (int16_t)(sizeof(RpcHeader) + sizeof(rpcId) + size);
 
 				hn_send(service.fd, (const char*)&header, sizeof(header));
 			}
@@ -496,7 +496,7 @@ namespace hyper_net {
 
 		std::thread _clearThread;
 		bool _terminate = false;
-		olib::AtomicIntrusiveLinkedList<TimeoutCheck, &TimeoutCheck::next> _waitQueue;
+		AtomicIntrusiveLinkedList<TimeoutCheck, &TimeoutCheck::next> _waitQueue;
 	};
 
 	Rpc::Rpc() {

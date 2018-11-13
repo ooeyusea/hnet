@@ -29,7 +29,7 @@ namespace hyper_net {
 		}
 
 		int32_t pageSize = Options::Instance().GetPageSize();
-		int32_t pages = std::ceil((float)stackSize / (float)pageSize) + 1;
+		int32_t pages = (int32_t)std::ceil((float)stackSize / (float)pageSize) + 1;
 		int32_t realSize = pages * pageSize;
 
 		void * vp = (char*)p - realSize;

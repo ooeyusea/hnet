@@ -55,7 +55,7 @@ namespace hyper_net {
 				if (_close)
 					throw ChannelCloseException();
 
-				if (_write - _read < _capacity) {
+				if ((int32_t)(_write - _read) < _capacity) {
 					char * dst = _buffer + (_write % _capacity) * _blockSize;
 					if (!_pushFn)
 						SafeMemcpy(dst, _blockSize, p, _blockSize);
@@ -200,7 +200,7 @@ namespace hyper_net {
 			if (_close)
 				return false;
 
-			if (_write - _read < _capacity) {
+			if ((int32_t)(_write - _read) < _capacity) {
 				char * dst = _buffer + (_write % _capacity) * _blockSize;
 				if (!_pushFn)
 					SafeMemcpy(dst, _blockSize, p, _blockSize);

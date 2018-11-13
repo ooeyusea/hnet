@@ -21,10 +21,10 @@ public:
 	bool Auth();
 	bool BindAccount();
 
-	template <typename T>
+	template <int32_t size, typename T>
 	void Send(int32_t msgId, int32_t version, T& t) {
-		char buff[MAX_SESSION_BUFF_SIZE];
-		hn_ostream stream(buff, MAX_SESSION_BUFF_SIZE);
+		char buff[size];
+		hn_ostream stream(buff, size);
 		hn_oachiver ar(stream, version);
 		ar << t;
 
@@ -38,9 +38,6 @@ private:
 	int32_t _port;
 
 	std::string _userId;
-
-	char _buff[MAX_SESSION_BUFF_SIZE];
-	int32_t _offset = 0;
 };
 
 #endif //__SESSION_H__

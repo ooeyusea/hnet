@@ -107,7 +107,7 @@ namespace hyper_net {
 
 			template <typename C, typename T, typename... Args>
 			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, R(C::*fn)(ParsedArgs..., T, Args...), ParsedArgs... args) {
-				T t;
+				std::remove_const_t<std::remove_reference_t<T>> t;
 				reader >> t;
 				if (reader.Fail()) {
 					ret.Fail();
@@ -133,7 +133,7 @@ namespace hyper_net {
 
 			template <typename C, typename T, typename... Args>
 			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, R(C::*fn)(ParsedArgs..., T, Args...) const, ParsedArgs... args) {
-				T t;
+				std::remove_const_t<std::remove_reference_t<T>> t;
 				reader >> t;
 				if (reader.Fail()) {
 					ret.Fail();
@@ -194,7 +194,7 @@ namespace hyper_net {
 
 			template <typename C, typename T, typename... Args>
 			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, C & c, void (C::*fn)(ParsedArgs..., T, Args...), ParsedArgs... args) {
-				T t;
+				std::remove_const_t<std::remove_reference_t<T>> t;
 				reader >> t;
 				if (reader.Fail()) {
 					ret.Fail();
@@ -211,7 +211,7 @@ namespace hyper_net {
 
 			template <typename C, typename T, typename... Args>
 			static void invoke(IArchiver<IBufferStream> & reader, RpcRet & ret, const C & c, void (C::*fn)(ParsedArgs..., T, Args...) const, ParsedArgs... args) {
-				T t;
+				std::remove_const_t<std::remove_reference_t<T>> t;
 				reader >> t;
 				if (reader.Fail()) {
 					ret.Fail();

@@ -30,6 +30,7 @@ namespace client_def {
 
 		std::string ip;
 		int16_t port;
+		int64_t check;
 
 		template <typename AR>
 		void Archive(AR& ar) {

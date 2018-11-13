@@ -83,10 +83,6 @@ SET(SERVERNODE
 	"${PROJECT_SOURCE_DIR}/../common/node/servernode.cpp"
 )
 
-SET(GATE
-	"${PROJECT_SOURCE_DIR}/../common/gate/gate.h"
-)
-
 SET(XML
 	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.h"
 	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.cpp"
@@ -123,7 +119,6 @@ SOURCE_GROUP(base64 FILES ${WS_BASE64})
 SOURCE_GROUP(node FILES ${SERVERNODE})
 SOURCE_GROUP(xml FILES ${XML})
 SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
-SOURCE_GROUP(gate FILES ${GATE})
 
 ADD_EXECUTABLE(logingate
 	${SRC}
@@ -136,7 +131,6 @@ ADD_EXECUTABLE(logingate
 	${SERVERNODE}
 	${XML}
 	${TINYXML}
-	${GATE}
 )
 
 IF(WIN32)

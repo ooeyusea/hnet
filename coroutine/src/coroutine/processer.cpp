@@ -37,7 +37,7 @@ namespace hyper_net {
 				_current->SwapIn();
 
 				int64_t markEnd = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-				_speed = (markEnd - mark + _speed) / 2;
+				_speed = (int32_t)((markEnd - mark + _speed) / 2);
 
 				switch (_current->GetStatus()) {
 				case CoroutineState::CS_RUNNABLE: PushBack(_current); break;

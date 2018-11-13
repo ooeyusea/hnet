@@ -11,7 +11,7 @@ namespace hyper_net {
 		int64_t util;
 		Coroutine * co;
 
-		olib::AtomicIntrusiveLinkedListHook<WaitTimer> next;
+		AtomicIntrusiveLinkedListHook<WaitTimer> next;
 	};
 
 	class TimerWeel {
@@ -91,8 +91,8 @@ namespace hyper_net {
 		std::vector<TimerWeel*> _tw;
 		std::unordered_map<Coroutine*, int64_t> _uses;
 
-		olib::AtomicIntrusiveLinkedList<WaitTimer, &WaitTimer::next> _waitQueue;
-		olib::AtomicIntrusiveLinkedList<WaitTimer, &WaitTimer::next> _stopQueue;
+		AtomicIntrusiveLinkedList<WaitTimer, &WaitTimer::next> _waitQueue;
+		AtomicIntrusiveLinkedList<WaitTimer, &WaitTimer::next> _stopQueue;
 	};
 }
 

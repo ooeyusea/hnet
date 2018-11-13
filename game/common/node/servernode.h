@@ -29,6 +29,8 @@ public:
 
 	inline hn_rpc& Get() { return _rpc; }
 
+	inline int16_t GetId() const { return _id; }
+
 private:
 	Cluster();
 	~Cluster() {}

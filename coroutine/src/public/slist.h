@@ -3,7 +3,7 @@
 #include "util.h"
 #include "spin_mutex.h"
 
-namespace tools {
+namespace hyper_net {
 	template <typename T>
 	struct LinkNode {
 		T * next;

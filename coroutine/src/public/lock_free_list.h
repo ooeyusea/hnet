@@ -9,7 +9,7 @@
 #include <cassert>
 #include <utility>
 
-namespace olib {
+namespace hyper_net {
 	template <class T>
 	struct AtomicIntrusiveLinkedListHook {
 		T* next{ nullptr };

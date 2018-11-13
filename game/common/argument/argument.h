@@ -3,6 +3,7 @@
 #include "hnet.h"
 #include <string>
 #include <map>
+#include <list>
 
 class Argument {
 	enum {
@@ -54,7 +55,7 @@ private:
 	Argument() {}
 	~Argument() {}
 
-	std::map<std::string, Args> _args;
+	std::map<std::string, std::list<Args>> _args;
 	std::map<char, std::string> _shortArgs;
 };
 

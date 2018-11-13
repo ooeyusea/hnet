@@ -11,7 +11,7 @@ namespace hyper_net {
 			Coroutine * co;
 			void * data;
 
-			olib::AtomicIntrusiveLinkedListHook<Job> next;
+			AtomicIntrusiveLinkedListHook<Job> next;
 		};
 
 		class AsyncWorker {
@@ -33,7 +33,7 @@ namespace hyper_net {
 		private:
 			const std::function<void(void * data)>& _fn;
 
-			olib::AtomicIntrusiveLinkedList<Job, &Job::next> _waitQueue;
+			AtomicIntrusiveLinkedList<Job, &Job::next> _waitQueue;
 
 			std::thread _t;
 			bool _terminate = false;

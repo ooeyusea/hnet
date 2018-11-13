@@ -7,6 +7,8 @@
 #include "servernode.h"
 #include "rpcdefine.h"
 #include "clientdefine.h"
+#include "errordefine.h"
+#include "nodedefine.h"
 
 #define LOGIN_GATE_MAX_CONNECT_TIME 12000
 #define MAX_PACKET_SIZE 2048
@@ -60,15 +62,21 @@ bool Session::Auth() {
 bool Session::BindAccount() {
 	client_def::AuthRsp rsp;
 
+	int16_t id = Cluster::Instance().GetId();
 	int32_t accountIdx = Cluster::Instance().ServiceId(node_def::ACCOUNT, 1);
-	rpc_def::BindAccountAck ack = Cluster::Instance().Get().Call<rpc_def::BindAccountAck, 256, const std::string&>(accountIdx, rpc_def::BIND_ACCOUNT, _userId);
+	rpc_def::BindAccountAck ack = Cluster::Instance().Get().Call<rpc_def::BindAccountAck, 256, int16_t, const std::string&>(accountIdx, rpc_def::BIND_ACCOUNT, ZONE_FROM_ID(id), _userId);
 	if (ack.errCode != 0) {
 		rsp.errCode = ack.errCode;
 
-		
+		Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
 		return false;
 	}
 
+	rsp.errCode = err_def::NONE;
+	rsp.ip = ack.ip;
+	rsp.check = ack.check;
+	rsp.port = ack.port;
 
+	Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
 	return true;
 }

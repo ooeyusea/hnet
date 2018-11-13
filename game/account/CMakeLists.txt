@@ -41,6 +41,7 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common/node"
 	"${PROJECT_SOURCE_DIR}/../common/xml"
 	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml"
+	"${PROJECT_SOURCE_DIR}/../common/locktable"
 )
 
 LINK_DIRECTORIES(
@@ -55,6 +56,10 @@ SET(ARGUMENT
 SET(SERVERNODE
 	"${PROJECT_SOURCE_DIR}/../common/node/servernode.h"
 	"${PROJECT_SOURCE_DIR}/../common/node/servernode.cpp"
+)
+
+SET(LOCKTABLE
+	"${PROJECT_SOURCE_DIR}/../common/locktable/locktable.h"
 )
 
 SET(XML
@@ -84,6 +89,7 @@ SET(SRC
 SOURCE_GROUP(\\ FILES ${SRC})
 SOURCE_GROUP(argument FILES ${ARGUMENT})
 SOURCE_GROUP(node FILES ${SERVERNODE})
+SOURCE_GROUP(locktable FILES ${LOCKTABLE})
 SOURCE_GROUP(xml FILES ${XML})
 SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
 
@@ -93,6 +99,7 @@ ADD_EXECUTABLE(account
 	${SERVERNODE}
 	${XML}
 	${TINYXML}
+	${LOCKTABLE}
 )
 
 IF(WIN32)
