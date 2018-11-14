@@ -8,6 +8,10 @@ namespace err_def {
 		INVALID_USER = 1,
 		KICK_FAILED = 2,
 		NO_GATE = 3,
+		AUTH_TIMEOUT = 4,
+		LOGIN_TIMEOUT = 5,
+		LOAD_ACCOUNT_TIMEOUT = 6,
+		LOGIN_ACTOR_TIMEOUT = 7,
 	};
 }
 #endif //__NODEDEFINE_H__

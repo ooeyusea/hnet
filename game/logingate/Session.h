@@ -3,14 +3,6 @@
 #include "hnet.h"
 #include "websocket.h"
 
-#define MAX_SESSION_BUFF_SIZE 8192
-
-struct GameObjectMail {
-	int8_t type;
-	int32_t opCode;
-	int32_t size;
-};
-
 class Session {
 public:
 	Session(int32_t fd, const std::string& ip, int32_t port) : _socket(fd), _ip(ip), _port(port) {}

@@ -18,7 +18,7 @@ bool Account::Start() {
 			LockTable<std::string, User, spin_mutex>::UnitType::Locker lock(ptr);
 			User * user = ptr->Get();
 			if (user) {
-				if (user->gateId > 0 && user->kickCount > MAX_KICK_COUNT) {
+				if (user->gateId > 0 && user->fd > 0 && user->kickCount > MAX_KICK_COUNT) {
 					try {
 						bool ok = Cluster::Instance().Get().Call<bool, 128, const std::string&>(Cluster::Instance().ServiceId(node_def::GATE, user->gateId), rpc_def::KICK_USER, userId);
 						if (!ok) {
@@ -28,6 +28,7 @@ bool Account::Start() {
 						}
 					}
 					catch (hn_rpc_exception& e) {
+						++user->kickCount;
 						ack.errCode = err_def::INVALID_USER;
 						return ack;
 					}
@@ -35,7 +36,8 @@ bool Account::Start() {
 
 				if (user->zone != 0 && user->zone != zone) {
 					try {
-						bool ok = Cluster::Instance().Get().Call<bool, 128, const std::string&>(Cluster::Instance().ServiceId(node_def::CACHE, ID_FROM_ZONE(zone, 1)), rpc_def::CLEAR_CACHE, userId);
+						int16_t cache = Zone::Instance().Calc(node_def::CACHE, zone, userId);
+						bool ok = Cluster::Instance().Get().Call<bool, 128, const std::string&>(Cluster::Instance().ServiceId(node_def::CACHE, ID_FROM_ZONE(zone, cache)), rpc_def::CLEAR_CACHE, userId);
 						if (!ok) {
 							ack.errCode = err_def::KICK_FAILED;
 							return ack;
@@ -52,6 +54,7 @@ bool Account::Start() {
 					user->gateId = gate->id;
 					user->zone = zone;
 					user->kickCount = 0;
+					user->fd = 0;
 					user->check = (util::GetTimeStamp() | rand());
 
 					ack.errCode = err_def::NONE;
@@ -69,20 +72,35 @@ bool Account::Start() {
 		
 	});
 
-	Cluster::Instance().Get().RegisterFn<128>(rpc_def::CHECK_ACCOUNT, [this](int16_t gate, const std::string& userId, int64_t check) -> int32_t {
+	Cluster::Instance().Get().RegisterFn<128>(rpc_def::LOGIN_ACCOUNT, [this](int16_t gate, const std::string& userId, int64_t check, int32_t fd) -> int32_t {
 		auto ptr = _users.FindCreate(userId);
 		if (ptr) {
 			LockTable<std::string, User, spin_mutex>::UnitType::Locker lock(ptr);
 			User * user = ptr->Get();
 			if (user) {
-				if (user->gateId == gate && user->check == check)
+				if (user->gateId == gate && user->check == check) {
+					user->fd = fd;
 					return err_def::NONE;
+				}
 				
 				return err_def::INVALID_USER;
 			}
 		}
 
 		return err_def::INVALID_USER;
+	});
+
+	Cluster::Instance().Get().RegisterFn<128>(rpc_def::LOGOUT_ACCOUNT, [this](int16_t gate, const std::string& userId, int32_t fd) {
+		auto ptr = _users.FindCreate(userId);
+		if (ptr) {
+			LockTable<std::string, User, spin_mutex>::UnitType::Locker lock(ptr);
+			User * user = ptr->Get();
+			if (user) {
+				if (user->gateId == gate && user->fd == fd) {
+					user->fd = 0;
+				}
+			}
+		}
 	});
 
 	Cluster::Instance().Get().RegisterFn<128>(rpc_def::GATE_REPORT, [this](int16_t id, const std::string& ip, int32_t port, int32_t count) {

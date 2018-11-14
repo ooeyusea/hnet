@@ -64,19 +64,26 @@ bool Session::BindAccount() {
 
 	int16_t id = Cluster::Instance().GetId();
 	int32_t accountIdx = Cluster::Instance().ServiceId(node_def::ACCOUNT, 1);
-	rpc_def::BindAccountAck ack = Cluster::Instance().Get().Call<rpc_def::BindAccountAck, 256, int16_t, const std::string&>(accountIdx, rpc_def::BIND_ACCOUNT, ZONE_FROM_ID(id), _userId);
-	if (ack.errCode != 0) {
-		rsp.errCode = ack.errCode;
+	try {
+		rpc_def::BindAccountAck ack = Cluster::Instance().Get().Call<rpc_def::BindAccountAck, 256, int16_t, const std::string&>(accountIdx, rpc_def::BIND_ACCOUNT, ZONE_FROM_ID(id), _userId);
+		if (ack.errCode != 0) {
+			rsp.errCode = ack.errCode;
 
+			Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+			return false;
+		}
+
+		rsp.errCode = err_def::NONE;
+		rsp.ip = ack.ip;
+		rsp.check = ack.check;
+		rsp.port = ack.port;
+
+		Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+		return true;
+	}
+	catch (hn_rpc_exception& e) {
+		rsp.errCode = err_def::AUTH_TIMEOUT;
 		Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
 		return false;
 	}
-
-	rsp.errCode = err_def::NONE;
-	rsp.ip = ack.ip;
-	rsp.check = ack.check;
-	rsp.port = ack.port;
-
-	Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
-	return true;
 }

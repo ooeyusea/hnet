@@ -28,6 +28,7 @@ namespace hyper_net {
 		Rpc();
 		~Rpc();
 
+		void SwitchOutOfOrder(bool enable);
 		void Attach(uint32_t serviceId, int32_t fd);
 		void Start(uint32_t serviceId, int32_t fd, const char * context, int32_t size);
 		void RegisterFn(int32_t rpcId, const std::function<void(const void * context, int32_t size, RpcRet & ret)>& fn);
@@ -250,6 +251,10 @@ namespace hyper_net {
 	public:
 		CoRpc() {}
 		~CoRpc() {}
+
+		inline void SwitchOutOfOrder(bool enable) {
+			_impl.SwitchOutOfOrder(enable);
+		}
 
 		inline void Attach(uint32_t serviceId, int32_t fd) {
 			_impl.Attach(serviceId, fd);

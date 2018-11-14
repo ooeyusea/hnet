@@ -33,12 +33,65 @@ INCLUDE_DIRECTORIES(
     "${PROJECT_SOURCE_DIR}/../../coroutine/include"
 	"${PROJECT_SOURCE_DIR}/../common"
 	"${PROJECT_SOURCE_DIR}/../common/http"
-	"${PROJECT_SOURCE_DIR}/../common/rpc"
+	"${PROJECT_SOURCE_DIR}/../common/argument"
+	"${PROJECT_SOURCE_DIR}/../common/websocket"
+	"${PROJECT_SOURCE_DIR}/../common/sha1"
+	"${PROJECT_SOURCE_DIR}/../common/md5"
+	"${PROJECT_SOURCE_DIR}/../common/base64"
+	"${PROJECT_SOURCE_DIR}/../common/node"
+	"${PROJECT_SOURCE_DIR}/../common/xml"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml"
 )
 
 LINK_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../../thirdparty/boost/lib"
 )
+
+SET(ARGUMENT
+	"${PROJECT_SOURCE_DIR}/../common/argument/argument.h"
+	"${PROJECT_SOURCE_DIR}/../common/argument/argument.cpp"
+)
+
+SET(WEBSOCKET
+	"${PROJECT_SOURCE_DIR}/../common/websocket/websocket.h"
+	"${PROJECT_SOURCE_DIR}/../common/websocket/websocket.cpp"
+)
+
+SET(WS_SHA1
+	"${PROJECT_SOURCE_DIR}/../common/sha1/sha1.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/sha1/sha1.h"
+)
+
+SET(WS_MD5
+	"${PROJECT_SOURCE_DIR}/../common/md5/md5.c"
+	"${PROJECT_SOURCE_DIR}/../common/md5/md5.h"
+	"${PROJECT_SOURCE_DIR}/../common/md5/md5.hpp"
+)
+
+SET(WS_BASE64
+	"${PROJECT_SOURCE_DIR}/../common/base64/base64.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/base64/base64.h"
+)
+
+SET(SERVERNODE
+	"${PROJECT_SOURCE_DIR}/../common/node/servernode.h"
+	"${PROJECT_SOURCE_DIR}/../common/node/servernode.cpp"
+)
+
+SET(XML
+	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.h"
+	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.cpp"
+)
+
+SET(TINYXML
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinystr.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinystr.h"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxml.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxml.h"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxmlerror.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxmlparser.cpp"
+)
+
 
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
@@ -47,12 +100,31 @@ SET(SRC
 	"${PROJECT_SOURCE_DIR}/Session.cpp"
 	"${PROJECT_SOURCE_DIR}/Session.h"
 	"${PROJECT_SOURCE_DIR}/../common/util.h"
+	"${PROJECT_SOURCE_DIR}/../common/nodedefine.h"
+	"${PROJECT_SOURCE_DIR}/../common/rpcdefine.h"
+	"${PROJECT_SOURCE_DIR}/../common/clientdefine.h"
 )
 
 SOURCE_GROUP(\\ FILES ${SRC})
+SOURCE_GROUP(argument FILES ${ARGUMENT})
+SOURCE_GROUP(websocket FILES ${WEBSOCKET})
+SOURCE_GROUP(sha1 FILES ${WS_SHA1})
+SOURCE_GROUP(md5 FILES ${WS_MD5})
+SOURCE_GROUP(base64 FILES ${WS_BASE64})
+SOURCE_GROUP(node FILES ${SERVERNODE})
+SOURCE_GROUP(xml FILES ${XML})
+SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
 
 ADD_EXECUTABLE(gate
 	${SRC}
+	${ARGUMENT}
+	${WEBSOCKET}
+	${WS_SHA1}
+	${WS_MD5}
+	${WS_BASE64}
+	${SERVERNODE}
+	${XML}
+	${TINYXML}
 )
 
 IF(WIN32)

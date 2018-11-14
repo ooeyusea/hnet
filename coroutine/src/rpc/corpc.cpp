@@ -134,9 +134,14 @@ namespace hyper_net {
 
 			_clearThread = std::thread(&RpcImpl::DoClearTimeout, this);
 		}
+
 		~RpcImpl() {
 			_terminate = true;
 			_clearThread.join();
+		}
+
+		inline void SwitchOutOfOrder(bool enable) {
+			_outOfOrder = enable;
 		}
 
 		inline Service& SetupServiceFd(uint32_t serviceId, int32_t fd) {
@@ -361,14 +366,23 @@ namespace hyper_net {
 			if (itr != _cbs.end()) {
 				auto & fn = itr->second;
 
-				std::string buf(context + sizeof(int32_t), size - sizeof(int32_t));
-				hn_fork[this, &service, seq, &fn, buf]() {
+				if (_outOfOrder) {
+					std::string buf(context + sizeof(int32_t), size - sizeof(int32_t));
+					hn_fork[this, &service, seq, &fn, buf]() {
+						RpcRet ret;
+						if (seq != 0)
+							ret._impl->BindSequence(&service.fd, seq);
+
+						fn(buf.data(), (int32_t)buf.size(), ret);
+					};
+				}
+				else {
 					RpcRet ret;
 					if (seq != 0)
 						ret._impl->BindSequence(&service.fd, seq);
 
-					fn(buf.data(), (int32_t)buf.size(), ret);
-				};
+					fn(context + sizeof(int32_t), (int32_t)(size - sizeof(int32_t)), ret);
+				}
 			}
 			else if (seq != 0) {
 				RpcHeader header;
@@ -497,6 +511,8 @@ namespace hyper_net {
 		std::thread _clearThread;
 		bool _terminate = false;
 		AtomicIntrusiveLinkedList<TimeoutCheck, &TimeoutCheck::next> _waitQueue;
+
+		bool _outOfOrder = false;
 	};
 
 	Rpc::Rpc() {
@@ -505,6 +521,10 @@ namespace hyper_net {
 
 	Rpc::~Rpc() {
 		delete _impl;
+	}
+
+	void Rpc::SwitchOutOfOrder(bool enable) {
+		_impl->SwitchOutOfOrder(enable);
 	}
 
 	void Rpc::Attach(uint32_t serviceId, int32_t fd) {

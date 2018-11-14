@@ -54,6 +54,8 @@ namespace websocket {
 			return hn_test_fd(_fd);
 		}
 
+		inline int32_t GetFd() const { return _fd; }
+
 	private:
 		WebSocketFrameType ParseHandshake(uint8_t * input_frame, int32_t input_len);
 		std::string AnswerHandshake();
