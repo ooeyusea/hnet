@@ -3,6 +3,11 @@
 #include <string>
 
 namespace hyper_net {
+	struct DeliverBuffer {
+		const char * buff;
+		int32_t size;
+	};
+
 	template <class Stream>
 	class OArchiver {
 	public:
@@ -68,6 +73,12 @@ namespace hyper_net {
 			int32_t len = strlen(str);
 			*this & len;
 			_stream.write(str, len);
+			return *this;
+		}
+
+		OArchiver& operator&(const DeliverBuffer& buf) {
+			*this & buf.size;
+			_stream.write(buf.buff, buf.size);
 			return *this;
 		}
 
@@ -194,15 +205,14 @@ namespace hyper_net {
 		IArchiver& operator&(std::string& str) {
 			int32_t len = 0;
 			*this & len;
-			char buf[64];
-			while (len > 0 && !_stream.fail()) {
-				int32_t readlen = (len < 63) ? len : 63;
-				_stream.read(buf, readlen);
-				if (!_stream.fail())
-					str.append(buf, readlen);
-				len -= readlen;
-			}
+			_stream.read(str, len);
 
+			return *this;
+		}
+
+		IArchiver& operator&(DeliverBuffer& buf) {
+			*this & buf.size;
+			_stream.read(buf, buf.size);
 			return *this;
 		}
 
@@ -307,6 +317,30 @@ namespace hyper_net {
 			}
 		}
 
+		void read(std::string& buf, size_t len) {
+			if (_len < _pos + len)
+				_rdstate |= std::ios_base::badbit;
+			else {
+				buf.append(_content + _pos, len);
+				_pos += len;
+
+				if (_pos == _len)
+					_rdstate |= std::ios_base::eofbit;
+			}
+		}
+
+		void read(DeliverBuffer& buf, size_t len) {
+			if (_len < _pos + len)
+				_rdstate |= std::ios_base::badbit;
+			else {
+				buf.buff = _content + _pos;
+				_pos += len;
+
+				if (_pos == _len)
+					_rdstate |= std::ios_base::eofbit;
+			}
+		}
+
 		bool good() const { return _rdstate == 0; }
 		bool fail() const { return (_rdstate & (std::ios_base::badbit | std::ios_base::failbit)) != 0; }
 		bool bad() const { return (_rdstate & std::ios_base::badbit) != 0; }
@@ -356,6 +390,8 @@ namespace hyper_net {
 		std::ios_base::iostate _rdstate;
 	};
 }
+
+#define hn_deliver_buffer hyper_net::DeliverBuffer
 
 #define hn_iachiver hyper_net::IArchiver<hyper_net::IBufferStream>
 #define hn_oachiver hyper_net::OArchiver<hyper_net::OBufferStream>

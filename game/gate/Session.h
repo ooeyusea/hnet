@@ -40,6 +40,7 @@ private:
 	int64_t _aliveTick;
 
 	int32_t _cacheIdx;
+	int32_t _logicIdx;
 	
 	int32_t _version;
 	std::string _userId;

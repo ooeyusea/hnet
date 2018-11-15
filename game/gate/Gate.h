@@ -8,13 +8,13 @@
 
 class Gate {
 public:
-	Gate() {}
+	Gate();
 	~Gate() {}
 
 	bool Start();
 	void Run();
 	void Release();
-	void Terminate();
+	inline void Terminate() { _closeCh.TryPush(1); }
 
 	inline void RegisterSession(Session * session) {
 		std::lock_guard<spin_mutex> lock(_mutex);
@@ -27,8 +27,14 @@ public:
 	}
 
 private:
+	bool ReadConf();
+
+private:
+	int32_t _listenPort = 0;
 	int32_t _listenFd;
 	hn_channel<int8_t, 1> _closeCh;
+
+	int16_t _gateId;
 
 	spin_mutex _mutex;
 	std::map<int32_t, Session*> _sessions;

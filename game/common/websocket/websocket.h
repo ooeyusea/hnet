@@ -50,7 +50,7 @@ namespace websocket {
 			if (*(int32_t*)data != msgId)
 				return false;
 
-			hn_istream stream(data, size);
+			hn_istream stream(data + sizeof(int32_t), size - sizeof(int32_t));
 			hn_iachiver ar(stream, 0);
 
 			ar >> t;

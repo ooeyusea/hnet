@@ -4,7 +4,7 @@
 
 class LoginGate {
 public:
-	LoginGate() {}
+	LoginGate();
 	~LoginGate() {}
 
 	bool Start();
@@ -13,8 +13,14 @@ public:
 	void Terminate();
 
 private:
+	bool ReadConf();
+
+private:
+	int32_t _listenPort = 0;
 	int32_t _listenFd;
 	hn_channel<int8_t, 1> _closeCh;
+
+	int16_t _loginGateId;
 };
 
 #endif //__LOGINGATE_H__

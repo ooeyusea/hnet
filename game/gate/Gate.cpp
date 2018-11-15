@@ -3,10 +3,20 @@
 #include "rpcdefine.h"
 #include "websocket.h"
 #include "clientdefine.h"
+#include "argument.h"
+#include "XmlReader.h"
+#include "nodedefine.h"
 
 #define DELAY_OPEN_INTERVAL 15000
 
+Gate::Gate() {
+	Argument::Instance().RegArgument("node", 0, _gateId);
+}
+
 bool Gate::Start() {
+	if (!ReadConf())
+		return false;
+
 	Cluster::Instance().Get().RegisterFn<128>(rpc_def::KICK_USER, [this](int32_t fd, const std::string& userId, int32_t reason) {
 		bool kick = false;
 		int32_t version = 0;
@@ -33,7 +43,7 @@ bool Gate::Start() {
 
 	hn_sleep DELAY_OPEN_INTERVAL;
 
-	_listenFd = hn_listen("127.0.0.1", 9025);
+	_listenFd = hn_listen("0.0.0.0", _listenPort);
 	if (_listenFd < 0)
 		return false;
 
@@ -70,6 +80,29 @@ void Gate::Release() {
 
 }
 
-void Gate::Terminate() {
-	_closeCh.TryPush(1);
+bool Gate::ReadConf() {
+	olib::XmlReader conf;
+	if (!conf.LoadXml("conf.xml")) {
+		return false;
+	}
+
+	try {
+		auto& servers = conf.Root()["server"];
+		for (int32_t i = 0; i < servers.Count(); ++i) {
+			int8_t type = servers[i].GetAttributeInt8("type");
+			int16_t id = servers[i].GetAttributeInt16("id");
+
+			if (type == node_def::GATE && id == _gateId) {
+				_listenPort = servers[i].GetAttributeInt32("port");
+			}
+		}
+	}
+	catch (std::exception& e) {
+		return false;
+	}
+
+	if (_listenPort == 0)
+		return false;
+
+	return true;
 }

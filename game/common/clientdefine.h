@@ -5,20 +5,18 @@
 
 namespace client_def {
 	namespace c2s {
-		enum {
-			AUTH_REQ = 1,
-			LOGIN_REQ = 2,
-			CREATE_ROLE_REQ = 3,
-		};
+		const int32_t AUTH_REQ = 1;
+		const int32_t LOGIN_REQ = 2;
+		const int32_t CREATE_ROLE_REQ = 3;
+		const int32_t SELECT_ROLE_REQ = 4;
 	}
 
 	namespace s2c {
-		enum {
-			AUTH_RSP = 1,
-			LOGIN_RSP = 2,
-			CREATE_ROLE_RSP = 3,
-			KICK_NTF = 4,
-		};
+		const int32_t AUTH_RSP = 1;
+		const int32_t LOGIN_RSP = 2;
+		const int32_t CREATE_ROLE_RSP = 3;
+		const int32_t KICK_NTF = 4;
+		const int32_t SELECT_ROLE_RSP= 5;
 	}
 
 	struct AuthReq {
@@ -113,6 +111,24 @@ namespace client_def {
 	};
 
 	struct KickNtf {
+		int32_t errCode;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & errCode;
+		}
+	};
+
+	struct SelectRoleReq {
+		int64_t id;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & id;
+		}
+	};
+
+	struct SelectRoleRsp {
 		int32_t errCode;
 
 		template <typename AR>
