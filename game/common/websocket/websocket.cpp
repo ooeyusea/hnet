@@ -104,40 +104,6 @@ namespace websocket {
 		return nullptr;
 	}
 
-	void WebSocket::SendFrame(const char * data, int32_t size) {
-#ifdef WIN32
-		uint8_t * buffer = (uint8_t *)alloca(size + 32);
-#else
-		uint8_t buffer[size + 32];
-#endif
-		
-		int32_t pos = 0;
-		buffer[pos++] = 0x02;
-
-		if (size <= 125) {
-			buffer[pos++] = size;
-		}
-		else if (size <= 65535) {
-			buffer[pos++] = 126;
-
-			buffer[pos++] = (size >> 8) & 0xFF;
-			buffer[pos++] = size & 0xFF;
-		}
-		else {
-			buffer[pos++] = 127;
-
-			for (int i = 3; i >= 0; i--) {
-				buffer[pos++] = 0;
-			}
-
-			for (int i = 3; i >= 0; i--) {
-				buffer[pos++] = ((size >> 8 * i) & 0xFF);
-			}
-		}
-		memcpy((void*)(buffer + pos), data, size);
-		hn_send(_fd, (const char *)buffer, size + pos);
-	}
-
 	void WebSocket::Close() {
 		if (_connected) {
 			if (_fd > 0) {

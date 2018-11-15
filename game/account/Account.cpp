@@ -4,6 +4,7 @@
 #include "nodedefine.h"
 #include "rpcdefine.h"
 #include "errordefine.h"
+#include "zone.h"
 
 #define MAX_KICK_COUNT 3
 #define GATE_LOST_TIMEOUT 5000
@@ -20,7 +21,7 @@ bool Account::Start() {
 			if (user) {
 				if (user->gateId > 0 && user->fd > 0 && user->kickCount > MAX_KICK_COUNT) {
 					try {
-						bool ok = Cluster::Instance().Get().Call<bool, 128, const std::string&>(Cluster::Instance().ServiceId(node_def::GATE, user->gateId), rpc_def::KICK_USER, userId);
+						bool ok = Cluster::Instance().Get().Call<bool, 128, int32_t, const std::string&>(Cluster::Instance().ServiceId(node_def::GATE, user->gateId), rpc_def::KICK_USER, user->fd, userId, (int32_t)err_def::OTHER_USER_LOGIN);
 						if (!ok) {
 							++user->kickCount;
 							ack.errCode = err_def::KICK_FAILED;

@@ -69,7 +69,7 @@ bool Session::BindAccount() {
 		if (ack.errCode != 0) {
 			rsp.errCode = ack.errCode;
 
-			Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+			_socket.Write<128>(client_def::s2c::AUTH_RSP, 0, rsp);
 			return false;
 		}
 
@@ -78,12 +78,12 @@ bool Session::BindAccount() {
 		rsp.check = ack.check;
 		rsp.port = ack.port;
 
-		Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+		_socket.Write<128>(client_def::s2c::AUTH_RSP, 0, rsp);
 		return true;
 	}
 	catch (hn_rpc_exception& e) {
 		rsp.errCode = err_def::AUTH_TIMEOUT;
-		Send<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+		_socket.Write<128>(client_def::s2c::AUTH_RSP, 0, rsp);
 		return false;
 	}
 }

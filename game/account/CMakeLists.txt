@@ -56,6 +56,8 @@ SET(ARGUMENT
 SET(SERVERNODE
 	"${PROJECT_SOURCE_DIR}/../common/node/servernode.h"
 	"${PROJECT_SOURCE_DIR}/../common/node/servernode.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/node/zone.h"
+	"${PROJECT_SOURCE_DIR}/../common/node/zone.cpp"
 )
 
 SET(LOCKTABLE

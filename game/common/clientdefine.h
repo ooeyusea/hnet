@@ -17,6 +17,7 @@ namespace client_def {
 			AUTH_RSP = 1,
 			LOGIN_RSP = 2,
 			CREATE_ROLE_RSP = 3,
+			KICK_NTF = 4,
 		};
 	}
 
@@ -46,23 +47,6 @@ namespace client_def {
 		}
 	};
 
-	struct AuthRsp {
-		int32_t errCode;
-
-		std::string ip;
-		int16_t port;
-		int64_t check;
-
-		template <typename AR>
-		void Archive(AR& ar) {
-			ar & errCode;
-			if (errCode == 0) {
-				ar & ip;
-				ar & port;
-			}
-		}
-	};
-
 	struct LoginReq {
 		std::string userId;
 		int64_t check;
@@ -70,7 +54,7 @@ namespace client_def {
 
 		template <typename AR>
 		void Archive(AR& ar) {
-			ar & auth;
+			ar & userId;
 			ar & check;
 			ar & version;
 		}
@@ -125,6 +109,15 @@ namespace client_def {
 			if (errCode == 0) {
 				ar & role;
 			}
+		}
+	};
+
+	struct KickNtf {
+		int32_t errCode;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & errCode;
 		}
 	};
 }

@@ -12,6 +12,7 @@ namespace err_def {
 		LOGIN_TIMEOUT = 5,
 		LOAD_ACCOUNT_TIMEOUT = 6,
 		LOGIN_ACTOR_TIMEOUT = 7,
+		OTHER_USER_LOGIN = 8,
 	};
 }
 #endif //__NODEDEFINE_H__

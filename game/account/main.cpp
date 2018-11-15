@@ -2,6 +2,7 @@
 #include "Account.h"
 #include "servernode.h"
 #include "argument.h"
+#include "zone.h"
 
 void start(int32_t argc, char ** argv) {
 	Cluster::Instance();
@@ -15,6 +16,9 @@ void start(int32_t argc, char ** argv) {
 	}
 
 	if (account.Start()) {
+		if (!Zone::Instance().Start())
+			return;
+
 		if (!Cluster::Instance().Start())
 			return;
 

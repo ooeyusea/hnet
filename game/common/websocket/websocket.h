@@ -40,7 +40,76 @@ namespace websocket {
 		bool ShakeHands();
 		const char * ReadFrame(int32_t & size);
 
-		void SendFrame(const char * data, int32_t size);
+		template <typename T>
+		bool Read(int32_t msgId, int32_t version, T& t) {
+			int32_t size = 0;
+			const char * data = ReadFrame(size);
+			if (data == nullptr)
+				return false;
+
+			if (*(int32_t*)data != msgId)
+				return false;
+
+			hn_istream stream(data, size);
+			hn_iachiver ar(stream, 0);
+
+			ar >> t;
+			if (ar.Fail())
+				return false;
+
+			return true;
+		}
+
+		template <int32_t len, typename T>
+		void Write(int32_t msgId, int32_t version, T & t) {
+			uint8_t buffer[len + 32 + sizeof(msgId)];
+
+			*(int32_t*)(buffer + 32) = msgId;
+
+			hn_ostream stream((char *)buffer + 32 + sizeof(msgId), len);
+			hn_oachiver ar(stream, version);
+			ar << t;
+			if (ar.Fail())
+				return;
+
+			int32_t size = (int32_t)stream.size();
+			int32_t offset = 1;
+			if (size <= 125)
+				offset += 1;
+			else if (size <= 65535) {
+				offset += 3;
+			}
+			else if (size <= 65535) {
+				offset += 9;
+			}
+
+			int32_t pos = 32 - offset;
+			buffer[pos++] = 0x02;
+
+			if (size <= 125) {
+				buffer[pos++] = size;
+			}
+			else if (size <= 65535) {
+				buffer[pos++] = 126;
+
+				buffer[pos++] = (size >> 8) & 0xFF;
+				buffer[pos++] = size & 0xFF;
+			}
+			else {
+				buffer[pos++] = 127;
+
+				for (int i = 3; i >= 0; i--) {
+					buffer[pos++] = 0;
+				}
+
+				for (int i = 3; i >= 0; i--) {
+					buffer[pos++] = ((size >> 8 * i) & 0xFF);
+				}
+			}
+
+			hn_send(_fd, (const char *)buffer + 32 -  offset, size + offset);
+		};
+
 		void Close();
 		inline void Shutdown() {
 			hn_shutdown(_fd);
@@ -83,6 +152,65 @@ namespace websocket {
 		std::string _key;
 
 		bool _connected = false;
+	};
+
+	class WebSocketSender {
+	public:
+		WebSocketSender(int32_t fd) : _fd(fd) {}
+		~WebSocketSender() {}
+
+		template <int32_t len, typename T>
+		void Write(int32_t msgId, int32_t version, T & t) {
+			uint8_t buffer[len + 32 + sizeof(msgId)];
+
+			*(int32_t*)(buffer + 32) = msgId;
+
+			hn_ostream stream((char *)buffer + 32 + sizeof(msgId), len);
+			hn_oachiver ar(stream, version);
+			ar << t;
+			if (ar.Fail())
+				return;
+
+			int32_t size = (int32_t)stream.size();
+			int32_t offset = 1;
+			if (size <= 125)
+				offset += 1;
+			else if (size <= 65535) {
+				offset += 3;
+			}
+			else if (size <= 65535) {
+				offset += 9;
+			}
+
+			int32_t pos = 32 - offset;
+			buffer[pos++] = 0x02;
+
+			if (size <= 125) {
+				buffer[pos++] = size;
+			}
+			else if (size <= 65535) {
+				buffer[pos++] = 126;
+
+				buffer[pos++] = (size >> 8) & 0xFF;
+				buffer[pos++] = size & 0xFF;
+			}
+			else {
+				buffer[pos++] = 127;
+
+				for (int i = 3; i >= 0; i--) {
+					buffer[pos++] = 0;
+				}
+
+				for (int i = 3; i >= 0; i--) {
+					buffer[pos++] = ((size >> 8 * i) & 0xFF);
+				}
+			}
+
+			hn_send(_fd, (const char *)buffer + 32 - offset, size + offset);
+		};
+
+	private:
+		int32_t _fd;
 	};
 }
 

@@ -3,6 +3,7 @@
 #include "servernode.h"
 #include "nodedefine.h"
 #include "errordefine.h"
+#include "zone.h"
 
 void Session::Start() {
 	auto co = util::DoWork([this] { CheckAlive(); });
@@ -75,7 +76,7 @@ bool Session::CheckConnect() {
 
 bool Session::Login() {
 	client_def::LoginReq req;
-	if (!Read(client_def::c2s::LOGIN_REQ, 0, req))
+	if (!_socket.Read(client_def::c2s::LOGIN_REQ, 0, req))
 		return false;
 
 	_userId = std::move(req.userId);
@@ -90,7 +91,7 @@ bool Session::Login() {
 			client_def::LoginRsp rsp;
 			rsp.errCode = errCode;
 
-			Send<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
+			_socket.Write<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
 			return false;
 		}
 	}
@@ -98,7 +99,7 @@ bool Session::Login() {
 		client_def::LoginRsp rsp;
 		rsp.errCode = err_def::LOGIN_TIMEOUT;
 
-		Send<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
+		_socket.Write<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
 		return false;
 	}
 
@@ -122,7 +123,7 @@ bool Session::LoadAccount() {
 			client_def::LoginRsp rsp;
 			rsp.errCode = ack.errCode;
 
-			Send<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
+			_socket.Write<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
 			return false;
 		}
 
@@ -134,7 +135,7 @@ bool Session::LoadAccount() {
 		client_def::LoginRsp rsp;
 		rsp.errCode = err_def::LOAD_ACCOUNT_TIMEOUT;
 
-		Send<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
+		_socket.Write<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
 		return false;
 	}
 
@@ -149,7 +150,7 @@ bool Session::LoadAccount() {
 		rsp.role.name = _role.name;
 	}
 
-	Send<128>(client_def::s2c::LOGIN_RSP, _version, rsp);
+	_socket.Write<128>(client_def::s2c::LOGIN_RSP, _version, rsp);
 	return true;
 }
 
@@ -160,7 +161,7 @@ void Session::RecoverAccount() {
 
 bool Session::CreateRole() {
 	client_def::CreateRoleReq req;
-	if (!Read(client_def::c2s::CREATE_ROLE_REQ, _version, req))
+	if (!_socket.Read(client_def::c2s::CREATE_ROLE_REQ, _version, req))
 		return false;
 
 	try {
@@ -171,7 +172,7 @@ bool Session::CreateRole() {
 			client_def::CreateRoleRsp rsp;
 			rsp.errCode = ack.errCode;
 
-			Send<128>(client_def::s2c::CREATE_ROLE_RSP, _version, rsp);
+			_socket.Write<128>(client_def::s2c::CREATE_ROLE_RSP, _version, rsp);
 			return false;
 		}
 
@@ -183,13 +184,13 @@ bool Session::CreateRole() {
 		rsp.role.id = _role.id;
 		rsp.role.name = _role.name;
 
-		Send<256>(client_def::s2c::CREATE_ROLE_RSP, _version, rsp);
+		_socket.Write<256>(client_def::s2c::CREATE_ROLE_RSP, _version, rsp);
 	}
 	catch (hn_rpc_exception& e) {
 		client_def::LoginRsp rsp;
 		rsp.errCode = err_def::LOAD_ACCOUNT_TIMEOUT;
 
-		Send<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
+		_socket.Write<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
 		return false;
 	}
 
