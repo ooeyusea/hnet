@@ -25,6 +25,19 @@ public:
 	}
 };
 
+class fake_mutex {
+public:
+	fake_mutex() = default;
+	fake_mutex(const fake_mutex&) = delete;
+	fake_mutex& operator= (const fake_mutex&) = delete;
+
+	inline bool try_lock() { return true; }
+
+	inline void lock() {}
+
+	inline void unlock() {}
+};
+
 class spin_rw_mutex {
 	std::atomic<int> flag;
 public:
@@ -53,19 +66,6 @@ public:
 
 	void unlock_shared() {
 		flag.fetch_sub(1, std::memory_order_release);
-	}
-};
-
-class fake_mutex {
-public:
-	fake_mutex() = default;
-	fake_mutex(const fake_mutex&) = delete;
-	fake_mutex& operator= (const fake_mutex&) = delete;
-
-	void lock() {
-	}
-
-	void unlock() {
 	}
 };
 

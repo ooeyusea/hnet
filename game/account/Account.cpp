@@ -16,7 +16,7 @@ bool Account::Start() {
 		rpc_def::BindAccountAck ack;
 		auto ptr = _users.FindCreate(userId);
 		if (ptr) {
-			LockTable<std::string, User, spin_mutex>::UnitType::Locker lock(ptr);
+			UserTable::UnitType::Locker lock(ptr);
 			User * user = ptr->Get();
 			if (user) {
 				if (user->gateId > 0 && user->fd > 0 && user->kickCount > MAX_KICK_COUNT) {
@@ -60,7 +60,7 @@ bool Account::Start() {
 	Cluster::Instance().Get().RegisterFn<128>(rpc_def::LOGIN_ACCOUNT, [this](int16_t gate, const std::string& userId, int64_t check, int32_t fd) -> int32_t {
 		auto ptr = _users.FindCreate(userId);
 		if (ptr) {
-			LockTable<std::string, User, spin_mutex>::UnitType::Locker lock(ptr);
+			UserTable::UnitType::Locker lock(ptr);
 			User * user = ptr->Get();
 			if (user) {
 				if (user->gateId == gate && user->check == check) {
@@ -78,7 +78,7 @@ bool Account::Start() {
 	Cluster::Instance().Get().RegisterFn<128>(rpc_def::LOGOUT_ACCOUNT, [this](int16_t gate, const std::string& userId, int32_t fd) {
 		auto ptr = _users.FindCreate(userId);
 		if (ptr) {
-			LockTable<std::string, User, spin_mutex>::UnitType::Locker lock(ptr);
+			UserTable::UnitType::Locker lock(ptr);
 			User * user = ptr->Get();
 			if (user) {
 				if (user->gateId == gate && user->fd == fd) {

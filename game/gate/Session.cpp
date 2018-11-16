@@ -119,7 +119,7 @@ bool Session::LoadAccount() {
 
 	try {
 		rpc_def::LoadAccountAck ack = Cluster::Instance().Get().Call<rpc_def::LoadAccountAck, 256, const std::string&>(_cacheIdx, hn_rpc_order{ util::CalcUniqueId(_userId.c_str()) }, 
-			rpc_def::LOAD_ACCOUNT, _userId);
+			rpc_def::LOAD_ACCOUNT, _userId, id, _socket.GetFd());
 		if (ack.errCode != 0) {
 			client_def::LoginRsp rsp;
 			rsp.errCode = ack.errCode;

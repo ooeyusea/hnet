@@ -5,12 +5,12 @@
 #include <memory>
 #include <mutex>
 
-template<typename Key, typename T>
+template<typename Key, typename T, typename Mutex>
 class LockUnit {
 public:
 	class Locker {
 	public:
-		explicit Locker(std::shared_ptr<LockUnit<Key, T>>& ptr) : _ptr(ptr), _owner(false) {
+		explicit Locker(std::shared_ptr<LockUnit>& ptr) : _ptr(ptr), _owner(false) {
 			_ptr->lock();
 			_owner = true;
 		};
@@ -35,7 +35,7 @@ public:
 		}
 
 	private:
-		std::shared_ptr<LockUnit<Key, T>>& _ptr;
+		std::shared_ptr<LockUnit>& _ptr;
 		bool _owner;
 	};
 
@@ -78,13 +78,13 @@ public:
 private:
 	Key _key;
 	T * _t;
-	hn_mutex _lock;
+	Mutex _lock;
 };
 
-template <typename Key, typename T, typename Mutex>
+template <typename Key, typename T, typename Mutex, typename Mutex2 = hn_mutex>
 class LockTable {
 public:
-	typedef LockUnit<Key, T> UnitType;
+	typedef LockUnit<Key, T, Mutex2> UnitType;
 
 	LockTable() {}
 	~LockTable() {}

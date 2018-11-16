@@ -10,6 +10,7 @@ namespace rpc_def {
 	const int32_t LOGOUT_ACCOUNT = 5;
 	const int32_t GATE_REPORT = 6;
 	const int32_t LOAD_ACCOUNT = 7;
+	const int32_t KILL_ACCOUNT_CACHE = 8;
 	const int32_t CREATE_ACTOR = 9;
 	const int32_t ACTIVE_ACTOR = 10;
 	const int32_t DEACTIVE_ACTOR = 11;

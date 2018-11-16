@@ -22,6 +22,8 @@ class Account {
 		int16_t port = 0;
 	};
 
+	typedef LockTable<std::string, User, spin_mutex, fake_mutex> UserTable;
+
 public:
 	Account() {}
 	~Account() {}
@@ -37,7 +39,7 @@ private:
 	int32_t _listenFd;
 	hn_channel<int8_t, 1> _closeCh;
 
-	LockTable<std::string, User, spin_mutex> _users;
+	UserTable _users;
 
 	Gate _gates[MAX_ZONE][MAX_ZONE_ID];
 };
