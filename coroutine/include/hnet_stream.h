@@ -33,9 +33,9 @@ namespace hyper_net {
 		}
 
 		template <typename T, class Alloc, template <typename, class> class Container>
-		OArchiver& operator&(Container<T, Alloc>& container) {
+		OArchiver& operator&(const Container<T, Alloc>& container) {
 			*this & (uint32_t)container.size();
-			typename Container<T, Alloc>::iterator itr = container.begin();
+			typename Container<T, Alloc>::const_iterator itr = container.begin();
 			for (; itr != container.end(); ++itr) {
 				*this & *itr;
 			}
@@ -76,7 +76,7 @@ namespace hyper_net {
 			return *this;
 		}
 
-		OArchiver& operator&(const DeliverBuffer& buf) {
+		OArchiver& operator&(DeliverBuffer& buf) {
 			*this & buf.size;
 			_stream.write(buf.buff, buf.size);
 			return *this;

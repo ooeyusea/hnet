@@ -162,8 +162,11 @@ bool Session::CreateRole() {
 			return false;
 
 		try {
-			rpc_def::CreateRoleAck ack = Cluster::Instance().Get().Call<rpc_def::CreateRoleAck, 256, const std::string&, const std::string&>(
-				_cacheIdx, hn_rpc_order{ util::CalcUniqueId(_userId.c_str()) }, rpc_def::CREATE_ACTOR, _userId, req.name);
+			rpc_def::RoleCreater creator;
+			creator.name = req.name;
+
+			rpc_def::CreateRoleAck ack = Cluster::Instance().Get().Call<rpc_def::CreateRoleAck, 256, const std::string&>(
+				_cacheIdx, hn_rpc_order{ util::CalcUniqueId(_userId.c_str()) }, rpc_def::CREATE_ACTOR, _userId, creator);
 
 			if (ack.errCode != 0) {
 				client_def::CreateRoleRsp rsp;
@@ -174,7 +177,8 @@ bool Session::CreateRole() {
 			}
 
 			_hasRole = true;
-			_role = ack.role;
+			_role.id = ack.roleId;
+			_role.name = req.name;
 
 			client_def::CreateRoleRsp rsp;
 			rsp.errCode = err_def::NONE;

@@ -61,15 +61,24 @@ namespace rpc_def {
 		}
 	};
 
+	struct RoleCreater {
+		std::string name;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & name;
+		}
+	};
+
 	struct CreateRoleAck {
 		int32_t errCode;
-		RoleInfo role;
+		int64_t roleId;
 
 		template <typename AR>
 		void Archive(AR& ar) {
 			ar & errCode;
 			if (errCode == 0) {
-				ar & role;
+				ar & roleId;
 			}
 		}
 	};

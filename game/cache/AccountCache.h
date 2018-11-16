@@ -13,11 +13,15 @@ public:
 	bool Kick();
 	bool TransforTo(int16_t zone);
 	void Pack(rpc_def::LoadAccountAck& ack);
+	int64_t CreateRole(const rpc_def::RoleCreater& creator);
+
+	inline bool HasRole() const { return _hasRole; }
 
 private:
-	int16_t gate = 0;
-	int32_t fd = 0;
-	bool loadData = false;
+	int16_t _gate = 0;
+	int32_t _fd = -1;
+	bool _loadData = false;
+	bool _hasRole = false;
 };
 
 class AccountCache {

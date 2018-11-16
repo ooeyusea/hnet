@@ -307,7 +307,7 @@ namespace hyper_net {
 		}
 
 		template <typename T, typename... Args>
-		inline void Push(OArchiver<OBufferStream> & ar, const T& t, Args... args) {
+		inline void Push(OArchiver<OBufferStream> & ar, T& t, Args... args) {
 			ar << t;
 			if (ar.Fail())
 				return;
