@@ -11,6 +11,8 @@
 #define MAX_RPC_SZIE 9941
 #define MAX_TEST_COUNT 15
 #define CHECK_TIMEOUT_INTERVAL 100
+#define RPC_ORDER_TIMEOUT 15000
+#define RPC_ORDER_CHECK_INTERVAL 50
 
 namespace hyper_net {
 #pragma pack(push, 1)
@@ -18,6 +20,7 @@ namespace hyper_net {
 		int16_t size;
 		int8_t op;
 		uint64_t seq;
+		int64_t order;
 
 		enum {
 			OP_PING = 0,
@@ -30,6 +33,27 @@ namespace hyper_net {
 		};
 	};
 #pragma pack(pop)
+
+	struct RpcDeliverBuff {
+		mutable char * data = nullptr;
+		mutable int32_t size = 0;
+
+		void Assign(const char * buff, int32_t len) {
+			if (len > 0) {
+				data = (char*)malloc(len);
+				memcpy(data, buff, len);
+				size = len;
+			}
+		}
+
+		void Release() const {
+			if (data) {
+				free(data);
+				data = nullptr;
+				size = 0;
+			}
+		}
+	};
 
 	class RpcLineBrokenException : RpcException {
 	public:
@@ -128,6 +152,13 @@ namespace hyper_net {
 			AtomicIntrusiveLinkedListHook<TimeoutCheck> next;
 		};
 
+		struct OrderRpc {
+			Service & service;
+			uint64_t seq;
+			const std::function<void(const void * context, int32_t size, RpcRet & ret)>& fn;
+			RpcDeliverBuff buf;
+		};
+
 	public:
 		RpcImpl() {
 			SafeMemset(_waits, sizeof(_waits), 0, sizeof(_waits));
@@ -138,10 +169,6 @@ namespace hyper_net {
 		~RpcImpl() {
 			_terminate = true;
 			_clearThread.join();
-		}
-
-		inline void SwitchOutOfOrder(bool enable) {
-			_outOfOrder = enable;
 		}
 
 		inline Service& SetupServiceFd(uint32_t serviceId, int32_t fd) {
@@ -193,7 +220,7 @@ namespace hyper_net {
 						hn_send(fd, (const char*)&header, sizeof(header));
 					}
 					else if (header.op == RpcHeader::OP_REQUEST) {
-						DoRequest(service, header.seq, context + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
+						DoRequest(service, header.order, header.seq, context + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
 					}
 					else if (header.op == RpcHeader::OP_RESPOND)
 						DoRespond(header.seq, context + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
@@ -268,7 +295,7 @@ namespace hyper_net {
 						activeTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 					}
 					else if (header.op == RpcHeader::OP_REQUEST) {
-						DoRequest(service, header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
+						DoRequest(service, header.order, header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
 					}
 					else if (header.op == RpcHeader::OP_RESPOND) {
 						DoRespond(header.seq, msg + pos + sizeof(RpcHeader), header.size - sizeof(RpcHeader));
@@ -300,7 +327,7 @@ namespace hyper_net {
 			_cbs[rpcId] = fn;
 		}
 
-		inline void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size) {
+		inline void Call(uint32_t serviceId, int64_t order, int32_t rpcId, const void * context, int32_t size) {
 			Service& service = FindService(serviceId);
 			if (&service == &_null)
 				throw RpcLineBrokenException();
@@ -309,6 +336,7 @@ namespace hyper_net {
 			RpcHeader& header = *(RpcHeader*)msg;
 			header.op = RpcHeader::OP_REQUEST;
 			header.seq = 0;
+			header.order = order;
 			header.size = (int16_t)(sizeof(RpcHeader) + sizeof(rpcId) + size);
 
 			if (header.size >= MAX_PACKET_SIZE)
@@ -320,7 +348,7 @@ namespace hyper_net {
 			hn_send(service.fd, msg, header.size);
 		}
 
-		inline void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size, const std::function<bool(const void * data, int32_t size)>& fn) {
+		inline void Call(uint32_t serviceId, int64_t order, int32_t rpcId, const void * context, int32_t size, const std::function<bool(const void * data, int32_t size)>& fn) {
 			Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 			OASSERT(co, "must in co");
 
@@ -330,9 +358,10 @@ namespace hyper_net {
 
 			char msg[MAX_PACKET_SIZE];
 			WaitState state{ co, 0, msg, 0 };
-			
+
 			RpcHeader& header = *(RpcHeader*)msg;
 			header.op = RpcHeader::OP_REQUEST;
+			header.order = order;
 			header.size = (int16_t)(sizeof(RpcHeader) + sizeof(rpcId) + size);
 
 			if (header.size >= MAX_PACKET_SIZE)
@@ -359,29 +388,73 @@ namespace hyper_net {
 			}
 		}
 
-		void DoRequest(Service& service, uint64_t seq, const char * context, int32_t size) {
+		void DoRequest(Service& service, int64_t order, uint64_t seq, const char * context, int32_t size) {
 			int32_t rpcId = *(int32_t*)context;
-			
+
 			auto itr = _cbs.find(rpcId);
 			if (itr != _cbs.end()) {
 				auto & fn = itr->second;
 
-				if (_outOfOrder) {
-					std::string buf(context + sizeof(int32_t), size - sizeof(int32_t));
+				RpcDeliverBuff buf;
+				buf.Assign(context + sizeof(int32_t), size - sizeof(int32_t));
+
+				if (order == 0) {
 					hn_fork[this, &service, seq, &fn, buf]() {
 						RpcRet ret;
 						if (seq != 0)
 							ret._impl->BindSequence(&service.fd, seq);
 
-						fn(buf.data(), (int32_t)buf.size(), ret);
+						fn(buf.data, (int32_t)buf.size, ret);
+
+						buf.Release();
 					};
 				}
 				else {
-					RpcRet ret;
-					if (seq != 0)
-						ret._impl->BindSequence(&service.fd, seq);
+					std::unique_lock<spin_mutex> lock(_mutex);
+					auto itr = _orders.find(order);
+					if (itr != _orders.end()) {
+						itr->second << new OrderRpc{ service, seq, fn, buf };
+					}
+					else {
+						auto ret = _orders.insert(std::make_pair(order, hn_channel<OrderRpc*>()));
+						itr = ret.first;
 
-					fn(context + sizeof(int32_t), (int32_t)(size - sizeof(int32_t)), ret);
+						itr->second << new OrderRpc{ service, seq, fn, buf };
+						lock.unlock();
+
+						auto channel = itr->second;
+						hn_fork [order, channel, this] {
+							int64_t last = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+							while (true) {
+								int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+								OrderRpc * rpc;
+								if (!channel.TryPop(rpc)) {
+									if (now - last > RPC_ORDER_TIMEOUT) {
+										std::unique_lock<spin_mutex> lock(_mutex);
+										if (!channel.TryPop(rpc)) {
+											_orders.erase(order);
+											return;
+										}
+									}
+									else {
+										hn_sleep RPC_ORDER_CHECK_INTERVAL;
+										continue;
+									}
+								};
+
+								last = now;
+
+								RpcRet ret;
+								if (rpc->seq != 0)
+									ret._impl->BindSequence(&(rpc->service.fd), rpc->seq);
+
+								rpc->fn(rpc->buf.data, rpc->buf.size, ret);
+
+								delete rpc;
+							}
+						};
+					}		
 				}
 			}
 			else if (seq != 0) {
@@ -512,7 +585,8 @@ namespace hyper_net {
 		bool _terminate = false;
 		AtomicIntrusiveLinkedList<TimeoutCheck, &TimeoutCheck::next> _waitQueue;
 
-		bool _outOfOrder = false;
+		spin_mutex _mutex;
+		std::unordered_map<int64_t, hn_channel<OrderRpc*>> _orders;
 	};
 
 	Rpc::Rpc() {
@@ -521,10 +595,6 @@ namespace hyper_net {
 
 	Rpc::~Rpc() {
 		delete _impl;
-	}
-
-	void Rpc::SwitchOutOfOrder(bool enable) {
-		_impl->SwitchOutOfOrder(enable);
 	}
 
 	void Rpc::Attach(uint32_t serviceId, int32_t fd) {
@@ -539,11 +609,11 @@ namespace hyper_net {
 		_impl->RegisterFn(rpcId, fn);
 	}
 
-	void Rpc::Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size) {
-		_impl->Call(serviceId, rpcId, context, size);
+	void Rpc::Call(uint32_t serviceId, int64_t order, int32_t rpcId, const void * context, int32_t size) {
+		_impl->Call(serviceId, order, rpcId, context, size);
 	}
 
-	void Rpc::Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size, const std::function<bool(const void * data, int32_t size)>& fn) {
-		_impl->Call(serviceId, rpcId, context, size, fn);
+	void Rpc::Call(uint32_t serviceId, int64_t order, int32_t rpcId, const void * context, int32_t size, const std::function<bool(const void * data, int32_t size)>& fn) {
+		_impl->Call(serviceId, order, rpcId, context, size, fn);
 	}
 }

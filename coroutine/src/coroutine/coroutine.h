@@ -5,6 +5,7 @@
 #include <boost/context/all.hpp>
 using namespace boost::context;
 #endif
+#include <atomic>
 
 namespace hyper_net {
 	enum class CoroutineState {
@@ -68,6 +69,10 @@ namespace hyper_net {
 		inline void * GetTemp() const { return _temp; }
 		inline void SetTemp(void * p) { _temp = p; }
 
+		inline bool TestComplete() { return _flag.load(std::memory_order_acquire) == 0; }
+		inline void Acquire() { _flag.store(1, std::memory_order_relaxed); }
+		inline void Release() { _flag.store(0, std::memory_order_release); }
+
 	private:
 		CoFuncType _fn;
 		CoroutineState _status;
@@ -79,6 +84,8 @@ namespace hyper_net {
 		void * _p;
 		int32_t _stackSize;
 		void * _temp;
+
+		std::atomic<int32_t> _flag = 0;
 	};
 }
 

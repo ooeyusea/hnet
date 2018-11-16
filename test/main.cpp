@@ -310,6 +310,8 @@ void start(int32_t argc, char ** argv) {
 	}
 	else if (strcmp(argv[1], "channel") == 0)
 		test_channel();
+	else if (strcmp(argv[1], "ticker") == 0)
+		test_ticker();
 	else if (strcmp(argv[1], "stack") == 0)
 		test_stack();
 	else if (strcmp(argv[1], "rpc_client") == 0)

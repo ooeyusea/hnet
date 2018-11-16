@@ -32,9 +32,11 @@ namespace hyper_net {
 
 				int64_t mark = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
+				_current->Acquire();
 				_current->SetQueue(false);
 				_current->SetStatus(CoroutineState::CS_RUNNABLE);
 				_current->SwapIn();
+				_current->Release();
 
 				int64_t markEnd = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 				_speed = (int32_t)((markEnd - mark + _speed) / 2);

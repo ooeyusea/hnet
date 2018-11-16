@@ -9,7 +9,6 @@ class Account {
 	struct User {
 		int16_t gateId = 0;
 		int8_t kickCount = 0;
-		int16_t zone = 0;
 		int64_t check = 0;
 		int32_t fd = -1;
 	};

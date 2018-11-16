@@ -34,5 +34,16 @@ namespace util {
 		};
 		return WaitCo(ch);
 	}
+
+	inline int64_t CalcUniqueId(const char * str) {
+		int64_t hash = 0;
+		const char * p = str;
+		while (*p) {
+			hash = hash * 131 + (*p);
+
+			++p;
+		}
+		return hash;
+	}
 }
 #endif

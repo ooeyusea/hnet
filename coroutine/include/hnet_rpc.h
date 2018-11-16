@@ -10,6 +10,10 @@ namespace hyper_net {
 	class RpcRetImpl;
 	class RpcImpl;
 
+	struct RpcOrder {
+		int64_t order;
+	};
+
 	class RpcRet {
 		friend class RpcImpl;
 	public:
@@ -28,12 +32,11 @@ namespace hyper_net {
 		Rpc();
 		~Rpc();
 
-		void SwitchOutOfOrder(bool enable);
 		void Attach(uint32_t serviceId, int32_t fd);
 		void Start(uint32_t serviceId, int32_t fd, const char * context, int32_t size);
 		void RegisterFn(int32_t rpcId, const std::function<void(const void * context, int32_t size, RpcRet & ret)>& fn);
-		void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size);
-		void Call(uint32_t serviceId, int32_t rpcId, const void * context, int32_t size, const std::function<bool(const void * data, int32_t size)>& fn);
+		void Call(uint32_t serviceId, int64_t order, int32_t rpcId, const void * context, int32_t size);
+		void Call(uint32_t serviceId, int64_t order, int32_t rpcId, const void * context, int32_t size, const std::function<bool(const void * data, int32_t size)>& fn);
 
 	private:
 		RpcImpl * _impl;
@@ -252,10 +255,6 @@ namespace hyper_net {
 		CoRpc() {}
 		~CoRpc() {}
 
-		inline void SwitchOutOfOrder(bool enable) {
-			_impl.SwitchOutOfOrder(enable);
-		}
-
 		inline void Attach(uint32_t serviceId, int32_t fd) {
 			_impl.Attach(serviceId, fd);
 		}
@@ -324,7 +323,7 @@ namespace hyper_net {
 			Push(ar, args...);
 
 			R r;
-			_impl.Call(serviceId, rpcId, buff, (int32_t)stream.size(), [&r, this](const void * context, int32_t len) -> bool {
+			_impl.Call(serviceId, 0, rpcId, buff, (int32_t)stream.size(), [&r, this](const void * context, int32_t len) -> bool {
 				IBufferStream istream((const char*)context, len);
 				IArchiver<IBufferStream> reader(istream, 0);
 				reader >> r;
@@ -341,7 +340,35 @@ namespace hyper_net {
 			OArchiver<OBufferStream> ar(stream, 0);
 			Push(ar, args...);
 
-			_impl.Call(serviceId, rpcId, buff, (int32_t)stream.size());
+			_impl.Call(serviceId, 0, rpcId, buff, (int32_t)stream.size());
+		}
+
+		template <typename R, int32_t size, typename... Args>
+		inline R Call(int32_t serviceId, RpcOrder order, int32_t rpcId, Args... args) {
+			char buff[size];
+			OBufferStream stream(buff, size);
+			OArchiver<OBufferStream> ar(stream, 0);
+			Push(ar, args...);
+
+			R r;
+			_impl.Call(serviceId, order.order, rpcId, buff, (int32_t)stream.size(), [&r, this](const void * context, int32_t len) -> bool {
+				IBufferStream istream((const char*)context, len);
+				IArchiver<IBufferStream> reader(istream, 0);
+				reader >> r;
+				return !reader.Fail();
+			});
+
+			return r;
+		}
+
+		template <int32_t size, typename... Args>
+		inline void Call(int32_t serviceId, RpcOrder order, int32_t rpcId, Args... args) {
+			char buff[size];
+			OBufferStream stream(buff, size);
+			OArchiver<OBufferStream> ar(stream, 0);
+			Push(ar, args...);
+
+			_impl.Call(serviceId, order.order, rpcId, buff, (int32_t)stream.size());
 		}
 
 	private:
@@ -349,6 +376,7 @@ namespace hyper_net {
 	};
 }
 
+#define hn_rpc_order hyper_net::RpcOrder
 #define hn_rpc hyper_net::CoRpc
 #define hn_rpc_exception hyper_net::RpcException
 

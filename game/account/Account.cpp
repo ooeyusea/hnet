@@ -35,25 +35,9 @@ bool Account::Start() {
 					}
 				}
 
-				if (user->zone != 0 && user->zone != zone) {
-					try {
-						int16_t cache = Zone::Instance().Calc(node_def::CACHE, zone, userId);
-						bool ok = Cluster::Instance().Get().Call<bool, 128, const std::string&>(Cluster::Instance().ServiceId(node_def::CACHE, ID_FROM_ZONE(zone, cache)), rpc_def::CLEAR_CACHE, userId);
-						if (!ok) {
-							ack.errCode = err_def::KICK_FAILED;
-							return ack;
-						}
-					}
-					catch (hn_rpc_exception& e) {
-						ack.errCode = err_def::INVALID_USER;
-						return ack;
-					}
-				}
-
 				auto * gate = Choose(zone);
 				if (gate) {
 					user->gateId = gate->id;
-					user->zone = zone;
 					user->kickCount = 0;
 					user->fd = 0;
 					user->check = (util::GetTimeStamp() | rand());

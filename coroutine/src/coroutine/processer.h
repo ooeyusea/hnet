@@ -39,6 +39,9 @@ namespace hyper_net {
 			if (co->InQueue())
 				return;
 
+			while (!co->TestComplete())
+				;
+
 			co->SetQueue(true);
 			co->SetProcesser(this);
 			++_count;

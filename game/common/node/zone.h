@@ -3,6 +3,7 @@
 #include "hnet.h"
 #include "nodedefine.h"
 #include "spin_mutex.h"
+#include "util.h"
 
 class Zone {
 public:
@@ -18,15 +19,10 @@ public:
 	}
 
 	inline int16_t Calc(int8_t service, int16_t zone, const char * key) {
-		return Calc(service, zone, CalcUniqueId(0, key));
+		return Calc(service, zone, util::CalcUniqueId(key));
 	}
 
 	int16_t Calc(int8_t service, int16_t zone, int64_t key);
-
-protected:
-	inline int64_t Zone::CalcUniqueId(int64_t hash, const char * str) {
-		return *str ? CalcUniqueId((hash * 131 + (*str)) % 4294967295, str + 1) : hash;
-	}
 
 private:
 	Zone();
