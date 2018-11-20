@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 2.8)
 PROJECT(cache)
 IF(UNIX)
     SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
-    SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./")
+    SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -lmysqlclient -Wl,-rpath,./")
     SET(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -O0 -pg")
     SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -DNDEBUG -O2")
 	SET(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
@@ -31,6 +31,7 @@ ENDIF(WIN32)
 
 INCLUDE_DIRECTORIES(
     "${PROJECT_SOURCE_DIR}/../../coroutine/include"
+	"${PROJECT_SOURCE_DIR}/../../thirdparty/mysql/include"
 	"${PROJECT_SOURCE_DIR}/../common"
 	"${PROJECT_SOURCE_DIR}/../common/http"
 	"${PROJECT_SOURCE_DIR}/../common/argument"
@@ -78,6 +79,10 @@ SET(TINYXML
 	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxmlparser.cpp"
 )
 
+SET(MYSQL
+	"${PROJECT_SOURCE_DIR}/../common/mysql/mysqlmgr.h"
+	"${PROJECT_SOURCE_DIR}/../common/mysql/mysqlmgr.cpp"
+)
 
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
@@ -98,6 +103,7 @@ SOURCE_GROUP(node FILES ${SERVERNODE})
 SOURCE_GROUP(locktable FILES ${LOCKTABLE})
 SOURCE_GROUP(xml FILES ${XML})
 SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
+SOURCE_GROUP(mysql FILES ${MYSQL})
 
 ADD_EXECUTABLE(cache
 	${SRC}
@@ -106,11 +112,13 @@ ADD_EXECUTABLE(cache
 	${XML}
 	${TINYXML}
 	${LOCKTABLE}
+	${MYSQL}
 )
 
 IF(WIN32)
 TARGET_LINK_LIBRARIES(cache
 	"${PROJECT_SOURCE_DIR}/../../bin/$<CONFIGURATION>/hnet.lib"
+	"${PROJECT_SOURCE_DIR}/../../thirdparty/mysql/lib/libmysql.lib"
 )
 SET_PROPERTY(TARGET cache PROPERTY FOLDER "chief")
 ENDIF(WIN32)
