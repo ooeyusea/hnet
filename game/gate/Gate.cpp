@@ -17,7 +17,7 @@ bool Gate::Start() {
 	if (!ReadConf())
 		return false;
 
-	Cluster::Instance().Get().RegisterFn<128>(rpc_def::KICK_USER, [this](int32_t fd, const std::string& userId, int32_t reason) {
+	Cluster::Instance().Get().Register(rpc_def::KICK_USER).AddCallback<128>([this](int32_t fd, const std::string& userId, int32_t reason) {
 		bool kick = false;
 		int32_t version = 0;
 		{
@@ -39,7 +39,7 @@ bool Gate::Start() {
 			hn_close(fd);
 		}
 		return true;
-	});
+	}).Comit();
 
 	hn_sleep DELAY_OPEN_INTERVAL;
 

@@ -209,6 +209,7 @@ bool Election::Start(int32_t clusterCount, const std::string& ip, int32_t electi
 			sender.Start(server.ip, server.electionPort);
 		};
 	}
+	return true;
 }
 
 Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {

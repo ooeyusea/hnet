@@ -85,8 +85,7 @@ bool Session::Login() {
 	int32_t accountIdx = Cluster::Instance().ServiceId(node_def::ACCOUNT, 1);
 
 	try {
-		int32_t errCode = Cluster::Instance().Get().Call<int32_t, 256, int16_t, const std::string&>(accountIdx, hn_rpc_order{ util::CalcUniqueId(_userId.c_str()) }, 
-			rpc_def::LOGIN_ACCOUNT, id, _userId, req.check, _socket.GetFd());
+		int32_t errCode = Cluster::Instance().Get().Call(accountIdx).Do<int32_t, 256, const std::string&>(rpc_def::LOGIN_ACCOUNT, _userId, id, req.check, _socket.GetFd());
 		if (errCode != 0) {
 			client_def::LoginRsp rsp;
 			rsp.errCode = errCode;
@@ -109,7 +108,7 @@ bool Session::Login() {
 void Session::Logout() {
 	int16_t id = Cluster::Instance().GetId();
 	int32_t accountIdx = Cluster::Instance().ServiceId(node_def::ACCOUNT, 1);
-	Cluster::Instance().Get().Call<256, int16_t, const std::string&>(accountIdx, hn_rpc_order{ util::CalcUniqueId(_userId.c_str()) }, rpc_def::LOGOUT_ACCOUNT, id, _userId, _socket.GetFd());
+	Cluster::Instance().Get().Call(accountIdx).Do<256, const std::string&>(rpc_def::LOGOUT_ACCOUNT, _userId, id, _socket.GetFd());
 }
 
 bool Session::LoadAccount() {
@@ -118,8 +117,7 @@ bool Session::LoadAccount() {
 	_cacheIdx = Cluster::Instance().ServiceId(node_def::CACHE, ID_FROM_ZONE(ZONE_FROM_ID(id), cache));
 
 	try {
-		rpc_def::LoadAccountAck ack = Cluster::Instance().Get().Call<rpc_def::LoadAccountAck, 256, const std::string&>(_cacheIdx, hn_rpc_order{ util::CalcUniqueId(_userId.c_str()) }, 
-			rpc_def::LOAD_ACCOUNT, _userId, id, _socket.GetFd());
+		rpc_def::LoadAccountAck ack = Cluster::Instance().Get().Call(_cacheIdx).Do<rpc_def::LoadAccountAck, 256, const std::string&>(rpc_def::LOAD_ACCOUNT, _userId, id, _socket.GetFd());
 		if (ack.errCode != 0) {
 			client_def::LoginRsp rsp;
 			rsp.errCode = ack.errCode;
@@ -165,8 +163,7 @@ bool Session::CreateRole() {
 			rpc_def::RoleCreater creator;
 			creator.name = req.name;
 
-			rpc_def::CreateRoleAck ack = Cluster::Instance().Get().Call<rpc_def::CreateRoleAck, 256, const std::string&>(
-				_cacheIdx, hn_rpc_order{ util::CalcUniqueId(_userId.c_str()) }, rpc_def::CREATE_ACTOR, _userId, creator);
+			rpc_def::CreateRoleAck ack = Cluster::Instance().Get().Call(_cacheIdx).Do<rpc_def::CreateRoleAck, 256, const std::string&>(rpc_def::CREATE_ACTOR, _userId, creator);
 
 			if (ack.errCode != 0) {
 				client_def::CreateRoleRsp rsp;
@@ -214,7 +211,7 @@ bool Session::LoginRole() {
 
 	try {
 		client_def::SelectRoleRsp rsp;
-		rsp.errCode = Cluster::Instance().Get().Call<int32_t, 256, int16_t, const std::string&>(_logicIdx, hn_rpc_order{ _role.id }, rpc_def::ACTIVE_ACTOR, id, _userId, _socket.GetFd(), req.id);
+		rsp.errCode = Cluster::Instance().Get().Call(_logicIdx).Do<int32_t, 256, int64_t, const std::string&>(rpc_def::ACTIVE_ACTOR, req.id, _userId, _socket.GetFd(), id);
 
 		_socket.Write<128>(client_def::s2c::SELECT_ROLE_RSP, _version, rsp);
 
@@ -233,7 +230,7 @@ bool Session::LoginRole() {
 
 void Session::LogoutRole() {
 	int16_t id = Cluster::Instance().GetId();
-	Cluster::Instance().Get().Call<256, int16_t>(_logicIdx, hn_rpc_order{ _role.id }, rpc_def::DEACTIVE_ACTOR, _role.id);
+	Cluster::Instance().Get().Call(_logicIdx).Do<256>(rpc_def::DEACTIVE_ACTOR, _role.id);
 }
 
 void Session::DealPacket() {
@@ -241,7 +238,7 @@ void Session::DealPacket() {
 	const char * data = _socket.ReadFrame(size);
 	while (data && size > 0 && size <= MAX_PACKET_SIZE) {
 		int16_t id = Cluster::Instance().GetId();
-		Cluster::Instance().Get().Call<MAX_PACKET_SIZE, int16_t>(_logicIdx, hn_rpc_order{ _role.id }, rpc_def::DELIVER_MESSAGE, _role.id, hn_deliver_buffer{ data, size });
+		Cluster::Instance().Get().Call(_logicIdx).Do<128>(rpc_def::DELIVER_MESSAGE, _role.id, hn_deliver_buffer{ data, size });
 
 		data = _socket.ReadFrame(size);
 	}

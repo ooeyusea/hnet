@@ -65,7 +65,8 @@ bool Session::BindAccount() {
 	int16_t id = Cluster::Instance().GetId();
 	int32_t accountIdx = Cluster::Instance().ServiceId(node_def::ACCOUNT, 1);
 	try {
-		rpc_def::BindAccountAck ack = Cluster::Instance().Get().Call<rpc_def::BindAccountAck, 256, int16_t, const std::string&>(accountIdx, hn_rpc_order{util::CalcUniqueId(_userId.c_str())}, rpc_def::BIND_ACCOUNT, ZONE_FROM_ID(id), _userId);
+		rpc_def::BindAccountAck ack = Cluster::Instance().Get().Call(accountIdx)
+			.Do<rpc_def::BindAccountAck, 256, const std::string&>(rpc_def::BIND_ACCOUNT, _userId, ZONE_FROM_ID(id));
 		if (ack.errCode != 0) {
 			rsp.errCode = ack.errCode;
 

@@ -232,6 +232,10 @@ int32_t DoubleValue(int32_t v) {
 	return v * 2;
 }
 
+void TestValue(int32_t v) {
+	printf("test7\n");
+}
+
 class A {
 public:
 	template <typename AR>
@@ -246,22 +250,25 @@ public:
 
 void test_rpc_server() {
 	hn_rpc rpc;
-	rpc.RegisterFn<128>(1, DoubleValue);
+	rpc.Register(1).AddCallback<128>(DoubleValue).Comit();
+	rpc.Register(7).AddCallback<128>(TestValue).Comit();
 	A a;
-	rpc.RegisterFn<128>(2, a, &A::invoke);
-	rpc.RegisterFn<128>(3, [](int32_t a, int32_t b)->int32_t {
+	rpc.Register(2).AddCallback<128>(a, &A::invoke).Comit();
+	rpc.Register(3).AddCallback<128>([](int32_t a, int32_t b)->int32_t {
 		return a + b;
-	});
-	rpc.RegisterFn<128>(4, [](int32_t c) {
+	}).AddOrder([] ()-> int64_t {
+		return 0;
+	}).Comit();
+	rpc.Register(4).AddCallback<128>([](int32_t c) {
 		printf("c is %d\n", c);
-	});
-	rpc.RegisterFn<128>(5, []() {
+	}).Comit();
+	rpc.Register(5).AddCallback<128>([]() {
 		printf("test5\n");
-	});
+	}).Comit();
 
-	rpc.RegisterFn<128>(6, []()->int32_t {
+	rpc.Register(6).AddCallback<128>([]()->int32_t {
 		return 6;
-	});
+	}).Comit();
 
 	//hyper_net::IsFunctor<decltype(DoubleValue)>::value;
 
@@ -282,14 +289,14 @@ void test_rpc_client() {
 	if (c > 0) {
 		hn_rpc rpc;
 		rpc.Attach(0, c);
-		int32_t i = rpc.Call<int32_t, 128>(0, 1, 1);
-		int32_t j = rpc.Call<int32_t, 128>(0, 2);
-		int32_t k = rpc.Call<int32_t, 128>(0, 3, 2, 3);
-		rpc.Call<128>(0, 4, 4);
-		rpc.Call<128>(0, 5);
-		int32_t m = rpc.Call<int32_t, 128>(0, 6);
+		int32_t i = rpc.Call(0).Do<int32_t, 128>(1, 1);
+		int32_t j = rpc.Call(0).Do<int32_t, 128>(2);
+		int32_t k = rpc.Call(0).Do<int32_t, 128>(3, 2, 3);
+		rpc.Call(0).Do<128>(4, 4);
+		rpc.Call(0).Do<128>(5);
+		int32_t m = rpc.Call(0).Do<int32_t, 128>(6);
 		try {
-			int32_t n = rpc.Call<int32_t, 128>(0, 5);
+			int32_t n = rpc.Call(0).Do<int32_t, 128>(5);
 		}
 		catch (hn_rpc_exception & e) {
 			printf("%s\n", e.what());

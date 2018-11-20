@@ -12,7 +12,7 @@
 bool Account::Start() {
 	srand((int32_t)util::GetTimeStamp());
 
-	Cluster::Instance().Get().RegisterFn<256>(rpc_def::BIND_ACCOUNT, [this](int16_t zone, const std::string& userId) -> rpc_def::BindAccountAck {
+	Cluster::Instance().Get().Register(rpc_def::BIND_ACCOUNT).AddCallback<256>([this](const std::string& userId, int16_t zone) -> rpc_def::BindAccountAck {
 		rpc_def::BindAccountAck ack;
 		auto ptr = _users.FindCreate(userId);
 		if (ptr) {
@@ -21,7 +21,8 @@ bool Account::Start() {
 			if (user) {
 				if (user->gateId > 0 && user->fd > 0 && user->kickCount > MAX_KICK_COUNT) {
 					try {
-						bool ok = Cluster::Instance().Get().Call<bool, 128, int32_t, const std::string&>(Cluster::Instance().ServiceId(node_def::GATE, user->gateId), rpc_def::KICK_USER, user->fd, userId, (int32_t)err_def::OTHER_USER_LOGIN);
+						bool ok = Cluster::Instance().Get().Call(Cluster::Instance().ServiceId(node_def::GATE, user->gateId))
+							.Do<bool, 128, int32_t, const std::string&>(rpc_def::KICK_USER, user->fd, userId, (int32_t)err_def::OTHER_USER_LOGIN);
 						if (!ok) {
 							++user->kickCount;
 							ack.errCode = err_def::KICK_FAILED;
@@ -55,9 +56,11 @@ bool Account::Start() {
 			return ack;
 		}
 		
-	});
+	}).AddOrder([](const std::string& userId)->int64_t {
+		return util::CalcUniqueId(userId.c_str());
+	}).Comit();
 
-	Cluster::Instance().Get().RegisterFn<128>(rpc_def::LOGIN_ACCOUNT, [this](int16_t gate, const std::string& userId, int64_t check, int32_t fd) -> int32_t {
+	Cluster::Instance().Get().Register(rpc_def::LOGIN_ACCOUNT).AddCallback<128>([this](const std::string& userId, int16_t gate, int64_t check, int32_t fd) -> int32_t {
 		auto ptr = _users.FindCreate(userId);
 		if (ptr) {
 			UserTable::UnitType::Locker lock(ptr);
@@ -73,9 +76,11 @@ bool Account::Start() {
 		}
 
 		return err_def::INVALID_USER;
-	});
+	}).AddOrder([](const std::string& userId)->int64_t {
+		return util::CalcUniqueId(userId.c_str());
+	}).Comit();
 
-	Cluster::Instance().Get().RegisterFn<128>(rpc_def::LOGOUT_ACCOUNT, [this](int16_t gate, const std::string& userId, int32_t fd) {
+	Cluster::Instance().Get().Register(rpc_def::LOGIN_ACCOUNT).AddCallback<128>([this](const std::string& userId, int16_t gate, int32_t fd) {
 		auto ptr = _users.FindCreate(userId);
 		if (ptr) {
 			UserTable::UnitType::Locker lock(ptr);
@@ -86,15 +91,17 @@ bool Account::Start() {
 				}
 			}
 		}
-	});
+	}).AddOrder([](const std::string& userId)->int64_t {
+		return util::CalcUniqueId(userId.c_str());
+	}).Comit();
 
-	Cluster::Instance().Get().RegisterFn<128>(rpc_def::GATE_REPORT, [this](int16_t id, const std::string& ip, int32_t port, int32_t count) {
+	Cluster::Instance().Get().Register(rpc_def::GATE_REPORT).AddCallback<128>([this](int16_t id, const std::string& ip, int32_t port, int32_t count) {
 		auto& gate = _gates[ZONE_FROM_ID(id)][ID_FROM_ID(id)];
 		gate.activeTime = util::GetTickCount();
 		gate.ip = ip;
 		gate.port = port;
 		gate.count = count;
-	});
+	}).Comit();
 
 	return true;
 }
