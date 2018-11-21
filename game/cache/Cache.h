@@ -15,6 +15,9 @@ public:
 	void Terminate();
 
 private:
+	bool OpenDB();
+
+private:
 	int32_t _listenFd;
 	hn_channel<int8_t, 1> _closeCh;
 };

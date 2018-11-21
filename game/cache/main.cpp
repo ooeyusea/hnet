@@ -3,6 +3,7 @@
 #include "servernode.h"
 #include "argument.h"
 #include "zone.h"
+#include "mysqlmgr.h"
 
 void start(int32_t argc, char ** argv) {
 	Cluster::Instance();
@@ -12,6 +13,10 @@ void start(int32_t argc, char ** argv) {
 		Argument::Instance().Parse(argc, argv);
 	}
 	catch (std::exception & e) {
+		return;
+	}
+
+	if (!MysqlMgr::Instance().Start()) {
 		return;
 	}
 

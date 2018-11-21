@@ -9,19 +9,32 @@
 
 class Account {
 public:
-	bool Load();
-	bool Kick();
-	bool TransforTo(int16_t zone);
-	void Pack(rpc_def::LoadAccountAck& ack);
+	bool Load(const std::string& userId);
+	bool Kick(const std::string& userId);
+
+	inline void Set(int16_t gate, int32_t fd) {
+		_gate = gate;
+		_fd = fd;
+	}
+	inline int16_t GetGate() const { return _gate; }
+	inline int32_t GetFd() const { return _fd; }
+	
+	inline bool HasRole() const { return _hasRole; }
 	int64_t CreateRole(const rpc_def::RoleCreater& creator);
 
-	inline bool HasRole() const { return _hasRole; }
+	void Pack(rpc_def::LoadAccountAck& ack);
+
+	void StartRecover(std::string userId, int64_t elapse);
+	void StopRecover();
 
 private:
 	int16_t _gate = 0;
 	int32_t _fd = -1;
 	bool _loadData = false;
 	bool _hasRole = false;
+	rpc_def::RoleInfo _role;
+
+	hn_ticker * _ticker = nullptr;
 };
 
 class AccountCache {
@@ -38,6 +51,8 @@ public:
 private:
 	AccountCache() {}
 	~AccountCache() {}
+
+	bool TransforTo(const std::string& _userId, int16_t zone);
 
 private:
 	int32_t _listenFd;

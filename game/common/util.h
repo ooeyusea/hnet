@@ -46,4 +46,7 @@ namespace util {
 		return hash;
 	}
 }
+
+#define SafeSprintf snprintf
+
 #endif

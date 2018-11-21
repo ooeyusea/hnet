@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <thread>
+#include "XmlReader.h"
 #define RECONNECT_SLEEP_TIME 300
 #define RECONNECT_TIME_OUT 10000
 
@@ -89,14 +90,14 @@ bool MysqlExecutor::Connection::Ping() {
 }
 
 int32_t MysqlExecutor::Connection::Execute(const char* sql) {
-	int32_t ret = mysql_real_query(&_handler, sql, strlen(sql));
+	int32_t ret = mysql_real_query(&_handler, sql, (unsigned long)strlen(sql));
 	if (ret == 0)
-		return mysql_affected_rows(&_handler);
+		return (int32_t)mysql_affected_rows(&_handler);
 
 	if (Ping()) {
-		ret = mysql_real_query(&_handler, sql, strlen(sql));
+		ret = mysql_real_query(&_handler, sql, (unsigned long)strlen(sql));
 		if (ret == 0)
-			return mysql_affected_rows(&_handler);
+			return (int32_t)mysql_affected_rows(&_handler);
 	}
 
 	//mysql_errno(&_handler); mysql_error(&_handler);
@@ -105,17 +106,17 @@ int32_t MysqlExecutor::Connection::Execute(const char* sql) {
 }
 
 int32_t MysqlExecutor::Connection::Execute(const char* sql, ResultSet& rs) {
-	int32_t ret = mysql_real_query(&_handler, sql, strlen(sql));
+	int32_t ret = mysql_real_query(&_handler, sql, (unsigned long)strlen(sql));
 	if (ret == 0) {
 		rs.SetResult(_handler);
-		return mysql_affected_rows(&_handler);
+		return (int32_t)mysql_affected_rows(&_handler);
 	}
 
 	if (Ping()) {
-		ret = mysql_real_query(&_handler, sql, strlen(sql));
+		ret = mysql_real_query(&_handler, sql, (unsigned long)strlen(sql));
 		if (ret == 0) {
 			rs.SetResult(_handler);
-			return mysql_affected_rows(&_handler);
+			return (int32_t)mysql_affected_rows(&_handler);
 		}
 	}
 
@@ -142,7 +143,7 @@ void MysqlExecutor::ResultSet::SetResult(MYSQL& mysql) {
 	if (_result) {
 		_fields = mysql_fetch_fields(_result);
 		_fieldCount = mysql_num_fields(_result);
-		_rowCount = mysql_num_rows(_result);
+		_rowCount = (uint32_t)mysql_num_rows(_result);
 	}
 }
 
@@ -284,21 +285,15 @@ int32_t MysqlExecutor::ResultSet::GetData(uint32_t index, char* buffer, int32_t 
 }
 
 struct MysqlExecuteInfo {
+	MysqlExecutor * executor = nullptr;
 	uint64_t idx = 0;
 	const char * sql = nullptr;
 	void * rs = nullptr;
 	int32_t ret = -1;
 };
 
-MysqlExecutor::MysqlExecutor() {
 
-}
-
-MysqlExecutor::~MysqlExecutor() {
-
-}
-
-bool MysqlExecutor::Open(const char * dsn, bool complete, int32_t threadCount) {
+bool MysqlExecutor::Open(const char * dsn, int32_t threadCount) {
 	if (threadCount <= 0)
 		return false;
 
@@ -312,32 +307,48 @@ bool MysqlExecutor::Open(const char * dsn, bool complete, int32_t threadCount) {
 		_connections.push_back(conn);
 	}
 
-	_queue = hn_create_async(threadCount, complete, [this](void * src) {
-		MysqlExecuteInfo& info = *(MysqlExecuteInfo*)src;
-		if (info.rs)
-			info.ret = OnExecute(info.idx, info.sql, *(ResultSet*)info.rs);
-		else
-			info.ret = OnExecute(info.idx, info.sql);
-	});
-
 	return true;
 }
 
 int32_t MysqlExecutor::Execute(uint64_t idx, const char* sql) {
-	MysqlExecuteInfo info{ idx, sql };
+	MysqlExecuteInfo info{ this, idx, sql };
 	_queue->Call((uint32_t)idx, &info);
 	return info.ret;
 }
 
 int32_t MysqlExecutor::Execute(uint64_t idx, const char* sql, ResultSet& rs) {
-	MysqlExecuteInfo info{ idx, sql, &rs };
+	MysqlExecuteInfo info{ this, idx, sql, &rs };
 	_queue->Call((uint32_t)idx, &info);
 	return info.ret;
 }
 
-MysqlExecutor * MysqlMgr::Start(const char * dsn, bool complete, int32_t threadCount) {
-	MysqlExecutor * executor = new MysqlExecutor;
-	if (!executor->Open(dsn, complete, threadCount)) {
+bool MysqlMgr::Start() {
+	olib::XmlReader conf;
+	if (!conf.LoadXml("conf.xml")) {
+		return false;
+	}
+
+	try {
+		_threadCount = conf.Root()["mysql_mgr"][0].GetAttributeInt32("thread_count");
+	}
+	catch (std::exception& e) {
+		return false;
+	}
+
+	_queue = hn_create_async(_threadCount, true, [this](void * src) {
+		MysqlExecuteInfo& info = *(MysqlExecuteInfo*)src;
+		if (info.rs)
+			info.ret = info.executor->OnExecute(info.idx, info.sql, *(MysqlExecutor::ResultSet*)info.rs);
+		else
+			info.ret = info.executor->OnExecute(info.idx, info.sql);
+	});
+
+	return true;
+}
+
+MysqlExecutor * MysqlMgr::Open(const char * dsn) {
+	MysqlExecutor * executor = new MysqlExecutor(_queue);
+	if (!executor->Open(dsn, _threadCount)) {
 		delete executor;
 		return nullptr;
 	}

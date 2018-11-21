@@ -19,6 +19,7 @@ public:
 	bool Login();
 	void Logout();
 	bool LoadAccount();
+	void RecoverAccount();
 	bool CreateRole();
 	bool LoginRole();
 	void LogoutRole();

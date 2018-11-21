@@ -43,6 +43,7 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common/xml"
 	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml"
 	"${PROJECT_SOURCE_DIR}/../common/locktable"
+	"${PROJECT_SOURCE_DIR}/../common/mysql"
 )
 
 LINK_DIRECTORIES(

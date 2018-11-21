@@ -38,6 +38,8 @@ void Session::Start() {
 				LogoutRole();
 
 			} while (false);
+
+			RecoverAccount();
 		} while (false);
 
 		Logout();
@@ -108,7 +110,13 @@ bool Session::Login() {
 void Session::Logout() {
 	int16_t id = Cluster::Instance().GetId();
 	int32_t accountIdx = Cluster::Instance().ServiceId(node_def::ACCOUNT, 1);
-	Cluster::Instance().Get().Call(accountIdx).Do<256, const std::string&>(rpc_def::LOGOUT_ACCOUNT, _userId, id, _socket.GetFd());
+
+	try {
+		Cluster::Instance().Get().Call(accountIdx).Do<256, const std::string&>(rpc_def::LOGOUT_ACCOUNT, _userId, id, _socket.GetFd());
+	}
+	catch (hn_rpc_exception& e) {
+
+	}
 }
 
 bool Session::LoadAccount() {
@@ -151,6 +159,16 @@ bool Session::LoadAccount() {
 
 	_socket.Write<128>(client_def::s2c::LOGIN_RSP, _version, rsp);
 	return true;
+}
+
+void Session::RecoverAccount() {
+	int16_t id = Cluster::Instance().GetId();
+	try {
+		 Cluster::Instance().Get().Call(_cacheIdx).Do<256, const std::string&>(rpc_def::RECOVER_ACCOUNT, _userId, id, _socket.GetFd());
+	}
+	catch (hn_rpc_exception& e) {
+
+	}
 }
 
 bool Session::CreateRole() {
@@ -230,7 +248,12 @@ bool Session::LoginRole() {
 
 void Session::LogoutRole() {
 	int16_t id = Cluster::Instance().GetId();
-	Cluster::Instance().Get().Call(_logicIdx).Do<256>(rpc_def::DEACTIVE_ACTOR, _role.id);
+	try {
+		Cluster::Instance().Get().Call(_logicIdx).Do<256>(rpc_def::DEACTIVE_ACTOR, _role.id);
+	}
+	catch (hn_rpc_exception& e) {
+
+	}
 }
 
 void Session::DealPacket() {
@@ -238,7 +261,12 @@ void Session::DealPacket() {
 	const char * data = _socket.ReadFrame(size);
 	while (data && size > 0 && size <= MAX_PACKET_SIZE) {
 		int16_t id = Cluster::Instance().GetId();
-		Cluster::Instance().Get().Call(_logicIdx).Do<128>(rpc_def::DELIVER_MESSAGE, _role.id, hn_deliver_buffer{ data, size });
+		try {
+			Cluster::Instance().Get().Call(_logicIdx).Do<128>(rpc_def::DELIVER_MESSAGE, _role.id, hn_deliver_buffer{ data, size });
+		}
+		catch (hn_rpc_exception& e) {
+
+		}
 
 		data = _socket.ReadFrame(size);
 	}
