@@ -16,6 +16,12 @@ namespace rpc_def {
 	const int32_t ACTIVE_ACTOR = 11;
 	const int32_t DEACTIVE_ACTOR = 12;
 	const int32_t DELIVER_MESSAGE = 13;
+	const int32_t LOAD_ACTOR = 14;
+	const int32_t SAVE_ACTOR = 15;
+	const int32_t KILL_ACTOR_CACHE = 16;
+	const int32_t REMOVE_ACTOR_CACHE = 17;
+	const int32_t LANDING_ACTOR = 18;
+	const int32_t KILL_ACTOR = 19;
 
 	struct BindAccountAck {
 		int32_t errCode;
@@ -81,6 +87,41 @@ namespace rpc_def {
 			if (errCode == 0) {
 				ar & roleId;
 			}
+		}
+	};
+
+	struct RoleData {
+		std::string name;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & name;
+		}
+	};
+
+	template <typename T, typename Test, Test check>
+	struct TestData {
+		Test test;
+		T data;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & test;
+			if (test == check) {
+				ar & data;
+			}
+		}
+	};
+
+	template <typename T>
+	struct JustCallPtr {
+		T * ptr;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			int64_t tmp = (int64_t)ptr;
+			ar & tmp;
+			ptr = (T *)tmp;
 		}
 	};
 }

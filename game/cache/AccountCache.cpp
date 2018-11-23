@@ -9,7 +9,7 @@
 #include "mysqlmgr.h"
 #include "dbdefine.h"
 #include "object_holder.h"
-#define RECOVER_TIMEOUT (360 * 1000 * 1000)
+#define RECOVER_TIMEOUT (360 * 1000)
 
 bool Account::Load(const std::string& userId) {
 	if (!_loadData) {
@@ -25,7 +25,7 @@ bool Account::Load(const std::string& userId) {
 		int16_t selfZone = ZONE_FROM_ID(Cluster::Instance().GetId());
 		if (rs.Next()) {
 			int16_t zone = rs.ToInt16(0);
-			if (zone != 0 && selfZone != zone) {
+			if (selfZone != zone) {
 				try {
 					int32_t cacheId = Cluster::Instance().ServiceId(node_def::CACHE, ID_FROM_ZONE(zone, ID_FROM_ID(Cluster::Instance().GetId())));
 					bool kicked = Cluster::Instance().Get().Call(cacheId).Do<bool, 128, const std::string&>(rpc_def::KILL_ACCOUNT_CACHE, userId, selfZone);
@@ -122,15 +122,6 @@ void Account::StartRecover(std::string userId, int64_t elapse) {
 	}
 }
 
-void Account::StopRecover() {
-	if (_ticker) {
-		auto ticker = _ticker;
-		_ticker = nullptr;
-
-		ticker->Stop();
-	}
-}
-
 void AccountCache::Start() {
 	Cluster::Instance().Get().Register(rpc_def::LOAD_ACCOUNT).AddCallback<256>([this](const std::string& userId, int16_t gate, int32_t fd) -> rpc_def::LoadAccountAck {
 		rpc_def::LoadAccountAck ack;
@@ -222,6 +213,7 @@ void AccountCache::Start() {
 					if (!TransforTo(userId, zone))
 						return false;
 				}
+				account->StopRecover();
 
 				_accounts.Remove(userId, [&ptr]() {
 					ptr->Release();
@@ -241,13 +233,13 @@ void AccountCache::Start() {
 	}).Comit();
 }
 
-bool AccountCache::TransforTo( const std::string& _userId, int16_t zone) {
+bool AccountCache::TransforTo( const std::string& userId, int16_t zone) {
 	int16_t selfZone = ZONE_FROM_ID(Cluster::Instance().GetId());
 
 	char sql[1024];
-	snprintf(sql, 1023, "update account set zone = %d where userId = '%s' and zone = %d", zone, _userId.c_str(), selfZone);
+	snprintf(sql, 1023, "update account set zone = %d where userId = '%s' and zone = %d", zone, userId.c_str(), selfZone);
 
-	int32_t ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(util::CalcUniqueId(_userId.c_str()), sql);
+	int32_t ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(util::CalcUniqueId(userId.c_str()), sql);
 	return ret > 0;
 }
 

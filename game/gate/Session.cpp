@@ -224,8 +224,8 @@ bool Session::LoginRole() {
 		return false;
 
 	int16_t id = Cluster::Instance().GetId();
-	int16_t logic = Zone::Instance().Calc(node_def::LOGIC, ZONE_FROM_ID(id), _userId);
-	_logicIdx = Cluster::Instance().ServiceId(node_def::LOGIC, ID_FROM_ZONE(ZONE_FROM_ID(id), req.id));
+	int16_t logic = Zone::Instance().Calc(node_def::LOGIC, ZONE_FROM_ID(id), req.id);
+	_logicIdx = Cluster::Instance().ServiceId(node_def::LOGIC, ID_FROM_ZONE(ZONE_FROM_ID(id), logic));
 
 	try {
 		client_def::SelectRoleRsp rsp;

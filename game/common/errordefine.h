@@ -21,6 +21,7 @@ namespace err_def {
 		CREATE_ROLE_FAILED = 14,
 		ROLE_FULL = 15,
 		KICK_BY_ACCOUNT = 16,
+		LOAD_ROLE_FAILED = 17,
 	};
 }
 #endif //__NODEDEFINE_H__

@@ -25,7 +25,12 @@ public:
 	void Pack(rpc_def::LoadAccountAck& ack);
 
 	void StartRecover(std::string userId, int64_t elapse);
-	void StopRecover();
+	inline void StopRecover() {
+		if (_ticker) {
+			_ticker->Stop();
+			_ticker = nullptr;
+		}
+	}
 
 private:
 	int16_t _gate = 0;
@@ -52,12 +57,9 @@ private:
 	AccountCache() {}
 	~AccountCache() {}
 
-	bool TransforTo(const std::string& _userId, int16_t zone);
+	bool TransforTo(const std::string& userId, int16_t zone);
 
 private:
-	int32_t _listenFd;
-	hn_channel<int8_t, 1> _closeCh;
-
 	AccountTable _accounts;
 };
 
