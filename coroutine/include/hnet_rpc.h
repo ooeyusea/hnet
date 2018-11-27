@@ -316,7 +316,7 @@ namespace hyper_net {
 
 		template <typename... Args>
 		static int64_t Deal(IArchiver<IBufferStream> & reader, int64_t(*fn)(Args...)) {
-			return Dealer<>::invoke(reader, ret, fn);
+			return Dealer<>::invoke(reader, fn);
 		}
 
 		static int64_t Deal(IArchiver<IBufferStream> & reader, int64_t(*fn)()) {
@@ -325,7 +325,7 @@ namespace hyper_net {
 
 		template <typename C, typename... Args>
 		static int64_t Deal(IArchiver<IBufferStream> & reader, C & c, int64_t(C::*fn)(Args...)) {
-			return Dealer<>::invoke(reader, ret, c, fn);
+			return Dealer<>::invoke(reader, c, fn);
 		}
 
 		template <typename C>

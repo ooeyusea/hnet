@@ -1,8 +1,8 @@
 #include "Logic.h"
-#include "RoleMgr.h"
+#include "initializor.h"
 
 bool Logic::Start() {
-	RoleMgr::Instance().Start();
+	InitializorMgr::Instance().Start();
 	return true;
 }
 

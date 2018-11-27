@@ -43,6 +43,8 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common/xml"
 	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml"
 	"${PROJECT_SOURCE_DIR}/../common/locktable"
+	"${PROJECT_SOURCE_DIR}/../common/initializor"
+	"${PROJECT_SOURCE_DIR}/player"
 )
 
 LINK_DIRECTORIES(
@@ -79,12 +81,20 @@ SET(TINYXML
 	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml/tinyxmlparser.cpp"
 )
 
+SET(INITIALIZOR
+	"${PROJECT_SOURCE_DIR}/../common/initializor/initializor.h"
+	"${PROJECT_SOURCE_DIR}/../common/initializor/initializor.cpp"
+)
+
+SET(PLAYER
+	"${PROJECT_SOURCE_DIR}/player/PlayerMgr.h"
+	"${PROJECT_SOURCE_DIR}/player/PlayerMgr.cpp"
+)
+
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
 	"${PROJECT_SOURCE_DIR}/Logic.cpp"
 	"${PROJECT_SOURCE_DIR}/Logic.h"
-	"${PROJECT_SOURCE_DIR}/RoleMgr.cpp"
-	"${PROJECT_SOURCE_DIR}/RoleMgr.h"
 	"${PROJECT_SOURCE_DIR}/../common/util.h"
 	"${PROJECT_SOURCE_DIR}/../common/nodedefine.h"
 	"${PROJECT_SOURCE_DIR}/../common/rpcdefine.h"
@@ -96,6 +106,8 @@ SOURCE_GROUP(node FILES ${SERVERNODE})
 SOURCE_GROUP(locktable FILES ${LOCKTABLE})
 SOURCE_GROUP(xml FILES ${XML})
 SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
+SOURCE_GROUP(player FILES ${PLAYER})
+SOURCE_GROUP(initializor FILES ${INITIALIZOR})
 
 ADD_EXECUTABLE(logic
 	${SRC}
@@ -104,6 +116,8 @@ ADD_EXECUTABLE(logic
 	${XML}
 	${TINYXML}
 	${LOCKTABLE}
+	${PLAYER}
+	${INITIALIZOR}
 )
 
 IF(WIN32)

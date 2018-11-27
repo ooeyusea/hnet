@@ -1,7 +1,7 @@
 #ifndef __OBJECT_HOLDER_H__
 #define __OBJECT_HOLDER_H__
 
-template <typename T, int32_t id>
+template <typename T, int32_t id = 0>
 class Holder {
 public:
 	Holder(T * t) {
