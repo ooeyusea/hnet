@@ -218,7 +218,7 @@ namespace hyper_net {
 
 		IArchiver& operator&(int8_t & val) {
 			if (!_stream.fail()) 
-				_stream.read(&val, 1);
+				_stream.read((char*)&val, 1);
 			return *this;
 		}
 

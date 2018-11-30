@@ -344,8 +344,8 @@ namespace hyper_net {
 		}
 	};
 
-	struct FunctionTrait { int a = 0; };
-	struct LamdaTrait { char a[32]; };
+	struct FunctionTrait {};
+	struct LamdaTrait {};
 
 	class CoRpc {
 	public:

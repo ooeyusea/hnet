@@ -45,6 +45,8 @@ namespace util {
 		}
 		return hash;
 	}
+
+#define MAX_PATH_SIZE 260
 }
 
 #define SafeSprintf snprintf

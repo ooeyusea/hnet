@@ -22,6 +22,8 @@ namespace rpc_def {
 	const int32_t REMOVE_ACTOR_CACHE = 17;
 	const int32_t LANDING_ACTOR = 18;
 	const int32_t KILL_ACTOR = 19;
+	const int32_t TRIGGER_SAVE_ACTOR = 20;
+	const int32_t REMOVE_ACTOR = 21;
 
 	struct BindAccountAck {
 		int32_t errCode;
@@ -124,5 +126,7 @@ namespace rpc_def {
 			ptr = (T *)tmp;
 		}
 	};
+
+	typedef rpc_def::TestData<rpc_def::TestData<rpc_def::RoleData, bool, true>, bool, true> KickPlayerAck;
 }
 #endif //__NODEDEFINE_H__

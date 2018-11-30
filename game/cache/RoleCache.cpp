@@ -138,14 +138,15 @@ bool Role::Kick(int64_t roleId) {
 		int16_t logicIdx = Cluster::Instance().ServiceId(node_def::LOGIC, ID_FROM_ZONE(ZONE_FROM_ID(id), logic));
 
 		try {
-			rpc_def::TestData<rpc_def::RoleData, bool, true> kicked = Cluster::Instance().Get().Call(Cluster::Instance().ServiceId(node_def::LOGIC, logicIdx))
-				.Do<rpc_def::TestData<rpc_def::RoleData, bool, true>, 128>(rpc_def::KILL_ACTOR, roleId, (int32_t)err_def::KICK_BY_ACCOUNT);
+			rpc_def::KickPlayerAck kicked = Cluster::Instance().Get().Call(Cluster::Instance().ServiceId(node_def::LOGIC, logicIdx))
+				.Do<rpc_def::KickPlayerAck, 128>(rpc_def::KILL_ACTOR, roleId, (int32_t)err_def::KICK_BY_ACCOUNT);
 
 			if (!kicked.test) {
 				return false;
 			}
 
-			Save(kicked.data);
+			if (kicked.data.test)
+				Save(kicked.data.data);
 		}
 		catch (hn_rpc_exception& e) {
 			return false;

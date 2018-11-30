@@ -44,7 +44,10 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common/xml/tinyxml"
 	"${PROJECT_SOURCE_DIR}/../common/locktable"
 	"${PROJECT_SOURCE_DIR}/../common/initializor"
+	"${PROJECT_SOURCE_DIR}/../common/method"
 	"${PROJECT_SOURCE_DIR}/player"
+	"${PROJECT_SOURCE_DIR}/../common/object"
+	"${PROJECT_SOURCE_DIR}/object_register"
 )
 
 LINK_DIRECTORIES(
@@ -67,6 +70,10 @@ SET(LOCKTABLE
 	"${PROJECT_SOURCE_DIR}/../common/locktable/locktable.h"
 )
 
+SET(METHOD
+	"${PROJECT_SOURCE_DIR}/../common/method/method.h"
+)
+
 SET(XML
 	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.h"
 	"${PROJECT_SOURCE_DIR}/../common/xml/XmlReader.cpp"
@@ -84,6 +91,22 @@ SET(TINYXML
 SET(INITIALIZOR
 	"${PROJECT_SOURCE_DIR}/../common/initializor/initializor.h"
 	"${PROJECT_SOURCE_DIR}/../common/initializor/initializor.cpp"
+)
+
+SET(OBJECT
+	"${PROJECT_SOURCE_DIR}/../common/object/ObjectProp.h"
+	"${PROJECT_SOURCE_DIR}/../common/object/Object.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/object/Object.h"
+	"${PROJECT_SOURCE_DIR}/../common/object/ObjectMgr.cpp"
+	"${PROJECT_SOURCE_DIR}/../common/object/ObjectMgr.h"
+	"${PROJECT_SOURCE_DIR}/../common/object/ObjectMemory.h"
+	"${PROJECT_SOURCE_DIR}/../common/object/ObjectDescriptor.h"
+	"${PROJECT_SOURCE_DIR}/../common/object/TableControl.h"
+)
+
+SET(OBJECT_REGISTER
+	"${PROJECT_SOURCE_DIR}/object_register/object_register.h"
+	"${PROJECT_SOURCE_DIR}/object_register/object_register.cpp"
 )
 
 SET(PLAYER
@@ -108,6 +131,9 @@ SOURCE_GROUP(xml FILES ${XML})
 SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
 SOURCE_GROUP(player FILES ${PLAYER})
 SOURCE_GROUP(initializor FILES ${INITIALIZOR})
+SOURCE_GROUP(method FILES ${METHOD})
+SOURCE_GROUP(object FILES ${OBJECT})
+SOURCE_GROUP(object_reister FILES ${OBJECT_REGISTER})
 
 ADD_EXECUTABLE(logic
 	${SRC}
@@ -118,6 +144,9 @@ ADD_EXECUTABLE(logic
 	${LOCKTABLE}
 	${PLAYER}
 	${INITIALIZOR}
+	${METHOD}
+	${OBJECT}
+	${OBJECT_REGISTER}
 )
 
 IF(WIN32)
