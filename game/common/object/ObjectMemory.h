@@ -41,7 +41,7 @@ public:
 		typedef typename object_def::FieldType<T>::value_type value_type;
 		static_assert(std::is_same<value_type, char>::value, "only string type can use this function");
 
-		int32_t size = strlen(t);
+		int32_t size = (int32_t)strlen(t);
 		size = (size >= T::size ? T::size - 1 : size);
 		memcpy(_data + T::offset, t, size);
 		*(_data + T::offset + size) = 0;

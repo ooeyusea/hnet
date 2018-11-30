@@ -34,7 +34,7 @@ private:
 	bool SaveObject(Object * obj, bool remove);
 
 	void Pack(Object * obj, rpc_def::RoleData& data);
-	void Read(Object * obj, rpc_def::RoleData& data);
+	bool Read(Object * obj, rpc_def::RoleData& data);
 
 	void StartRecoverTimer(Object * obj);
 	void StopRecoverTimer(Object * obj);

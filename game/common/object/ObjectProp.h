@@ -301,13 +301,13 @@ namespace object_def {
 
 #define BEGIN_CLASS(name, start)\
 struct name {\
-	static const int32_t type = object_def::CalcUniqueId(0, #name);\
+	static const int32_t type = (int32_t)object_def::CalcUniqueId(0, #name);\
 	typedef object_def::FiledStart<name, start> __start;\
 	typedef object_def::TableStart<name> __tableStart;
 
 #define BEGIN_CLASS_INHERIT(name, start, before)\
 struct name {\
-	static const int32_t type = object_def::CalcUniqueId(0, #name); \
+	static const int32_t type = (int32_t)object_def::CalcUniqueId(0, #name); \
 	typedef object_def::FiledStart<name, start, typename before::__end> __start;\
 	typedef object_def::TableStart<name, typename before::__tableEnd> __tableStart;
 
@@ -315,16 +315,16 @@ struct name {\
 }
 
 #define DECL_PROP(name, start, type)\
-	typedef object_def::Field<start, object_def::CalcUniqueId(0, #name), type, __start> name;
+	typedef object_def::Field<start, (int32_t)object_def::CalcUniqueId(0, #name), type, __start> name;
 
 #define DECL_PROP_AFTER(name, start, type, attr)\
-	typedef object_def::Field<start, object_def::CalcUniqueId(0, #name), type, attr> name;
+	typedef object_def::Field<start, (int32_t)object_def::CalcUniqueId(0, #name), type, attr> name;
 
 #define DECL_PROP_ATTR(name, start, type, ...)\
-	typedef object_def::Field<start, object_def::CalcUniqueId(0, #name), type, __start, ##__VA_ARGS__> name;
+	typedef object_def::Field<start, (int32_t)object_def::CalcUniqueId(0, #name), type, __start, ##__VA_ARGS__> name;
 
 #define DECL_PROP_ATTR_AFTER(name, start, type, attr, ...)\
-	typedef object_def::Field<start, object_def::CalcUniqueId(0, #name), type, attr, ##__VA_ARGS__> name;
+	typedef object_def::Field<start, (int32_t)object_def::CalcUniqueId(0, #name), type, attr, ##__VA_ARGS__> name;
 
 #define PROP_COMIT()\
 	typedef object_def::Field<0, 0, int8_t, __start> __end;\
@@ -336,14 +336,14 @@ struct name {\
 struct name{\
 	typedef __tableStart before_type;\
 	static const int32_t seq = __tableStart::seq + 1;\
-	static const int32_t type = object_def::CalcUniqueId(0, #name);\
+	static const int32_t type = (int32_t)object_def::CalcUniqueId(0, #name);\
 	typedef object_def::FiledStart<name, 0> __start;
 
 #define BEGIN_TABLE_AFTER(name, before)\
 struct name{\
 	typedef before before_type;\
 	static const int32_t seq = before::seq + 1;\
-	static const int32_t type = object_def::CalcUniqueId(0, #name);\
+	static const int32_t type = (int32_t)object_def::CalcUniqueId(0, #name);\
 	typedef object_def::FiledStart<name, 0> __start;
 
 #define DECL_COLUMN(name, type, key)\

@@ -45,9 +45,11 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common/locktable"
 	"${PROJECT_SOURCE_DIR}/../common/initializor"
 	"${PROJECT_SOURCE_DIR}/../common/method"
+	"${PROJECT_SOURCE_DIR}/../common/event"
 	"${PROJECT_SOURCE_DIR}/player"
 	"${PROJECT_SOURCE_DIR}/../common/object"
 	"${PROJECT_SOURCE_DIR}/object_register"
+	"${PROJECT_SOURCE_DIR}/"
 )
 
 LINK_DIRECTORIES(
@@ -104,6 +106,11 @@ SET(OBJECT
 	"${PROJECT_SOURCE_DIR}/../common/object/TableControl.h"
 )
 
+SET(EVENT
+	"${PROJECT_SOURCE_DIR}/../common/event/event_manager.h"
+	"${PROJECT_SOURCE_DIR}/../common/event/event_manager.cpp"
+)
+
 SET(OBJECT_REGISTER
 	"${PROJECT_SOURCE_DIR}/object_register/object_register.h"
 	"${PROJECT_SOURCE_DIR}/object_register/object_register.cpp"
@@ -121,6 +128,7 @@ SET(SRC
 	"${PROJECT_SOURCE_DIR}/../common/util.h"
 	"${PROJECT_SOURCE_DIR}/../common/nodedefine.h"
 	"${PROJECT_SOURCE_DIR}/../common/rpcdefine.h"
+	"${PROJECT_SOURCE_DIR}/eventdefine.h"
 )
 
 SOURCE_GROUP(\\ FILES ${SRC})
@@ -134,6 +142,7 @@ SOURCE_GROUP(initializor FILES ${INITIALIZOR})
 SOURCE_GROUP(method FILES ${METHOD})
 SOURCE_GROUP(object FILES ${OBJECT})
 SOURCE_GROUP(object_reister FILES ${OBJECT_REGISTER})
+SOURCE_GROUP(event FILES ${EVENT})
 
 ADD_EXECUTABLE(logic
 	${SRC}
@@ -147,6 +156,7 @@ ADD_EXECUTABLE(logic
 	${METHOD}
 	${OBJECT}
 	${OBJECT_REGISTER}
+	${EVENT}
 )
 
 IF(WIN32)
