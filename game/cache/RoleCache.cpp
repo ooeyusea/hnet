@@ -14,8 +14,6 @@
 #include "mysqlmgr.h"
 
 #define MAX_ROLE_DATA 4096
-#define SAVE_INTERVAL (360 * 1000)
-#define RECOVER_TIMEOUT (24 * 3600 * 1000)
 #define MAX_LANDING_SQL_SIZE 65536
 
 Role::Role() {
@@ -155,7 +153,10 @@ bool Role::Kick(int64_t roleId) {
 	return true;
 }
 
-void RoleCache::Start() {
+void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
+	_saveInterval = saveInterval;
+	_recoverTimeout = recoverTimeout;
+
 	Cluster::Instance().Get().Register(rpc_def::LOAD_ACTOR).AddCallback<MAX_ROLE_DATA>([this](int64_t roleId, int16_t logic) -> rpc_def::TestData<rpc_def::RoleData, int32_t, 0> {
 		rpc_def::TestData<rpc_def::RoleData, int32_t, 0> ack;
 		auto ptr = _roles.FindCreate(roleId);
@@ -195,10 +196,10 @@ void RoleCache::Start() {
 			Role * role = ptr->Get();
 			if (role) {
 				role->Save(data);
-				role->StartLanding(roleId, SAVE_INTERVAL);
+				role->StartLanding(roleId, _saveInterval);
 				if (remove) {
 					role->SetLogic(false);
-					role->StartRecover(roleId, RECOVER_TIMEOUT);
+					role->StartRecover(roleId, _recoverTimeout);
 				}
 			}
 		}
@@ -244,7 +245,7 @@ void RoleCache::Start() {
 			if (role) {
 				if (!role->Landing(roleId)) {
 					role->StopLanding();
-					role->StartLanding(roleId, SAVE_INTERVAL);
+					role->StartLanding(roleId, _saveInterval);
 				}
 			}
 		}
@@ -260,7 +261,7 @@ void RoleCache::Start() {
 			if (role && role->CheckRecover(ticker.ptr)) {
 				if (!role->Landing(roleId)) {
 					role->StopRecover();
-					role->StartRecover(roleId, RECOVER_TIMEOUT);
+					role->StartRecover(roleId, _recoverTimeout);
 					return false;
 				}
 				role->StopLanding();

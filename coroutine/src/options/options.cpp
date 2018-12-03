@@ -12,7 +12,7 @@ namespace hyper_net {
 #endif
 		const char * p = strchr(start, '.');
 		if (p)
-			_exeName.assign(start, p - argv[0]);
+			_exeName.assign(start, p - start);
 		else
 			_exeName = start;
 

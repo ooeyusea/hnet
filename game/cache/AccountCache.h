@@ -51,7 +51,7 @@ public:
 		return g_instance;
 	}
 
-	void Start();
+	void Start(int32_t accountTimeout);
 
 private:
 	AccountCache() {}
@@ -61,6 +61,8 @@ private:
 
 private:
 	AccountTable _accounts;
+
+	int32_t _accountTimeout;
 };
 
 #endif //__ACCOUNT_CACHE_H__

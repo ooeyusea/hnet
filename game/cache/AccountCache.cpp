@@ -9,7 +9,6 @@
 #include "mysqlmgr.h"
 #include "dbdefine.h"
 #include "object_holder.h"
-#define RECOVER_TIMEOUT (360 * 1000)
 
 bool Account::Load(const std::string& userId) {
 	if (!_loadData) {
@@ -122,7 +121,7 @@ void Account::StartRecover(std::string userId, int64_t elapse) {
 	}
 }
 
-void AccountCache::Start() {
+void AccountCache::Start(int32_t accountTimeout) {
 	Cluster::Instance().Get().Register(rpc_def::LOAD_ACCOUNT).AddCallback<256>([this](const std::string& userId, int16_t gate, int32_t fd) -> rpc_def::LoadAccountAck {
 		rpc_def::LoadAccountAck ack;
 		auto ptr = _accounts.FindCreate(userId);
@@ -166,7 +165,7 @@ void AccountCache::Start() {
 			Account * account = ptr->Get();
 			if (account) {
 				if (account->GetGate() == gate && account->GetFd() == fd)
-					account->StartRecover(userId, RECOVER_TIMEOUT);
+					account->StartRecover(userId, _accountTimeout);
 			}
 		}
 	}).AddOrder([](const std::string& userId)->int64_t {

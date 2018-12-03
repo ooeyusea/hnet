@@ -42,6 +42,9 @@ private:
 	UserTable _users;
 
 	Gate _gates[MAX_ZONE][MAX_ZONE_ID];
+
+	int32_t _maxKickCount;
+	int32_t _gateLostTimeout;
 };
 
 #endif //__ACCOUNT_H__

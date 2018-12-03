@@ -8,6 +8,7 @@
 #include "zone.h"
 #include "eventdefine.h"
 #include "event_manager.h"
+#include "XmlReader.h"
 
 #define MAX_ROLE_DATA 4096
 #define RECOVER_TIMEOUT 6 * 60 * 1000
@@ -22,6 +23,26 @@ PlayerMgr::PlayerMgr() {
 }
 
 bool PlayerMgr::Initialize() {
+	olib::XmlReader conf;
+	if (!conf.LoadXml("conf.xml")) {
+		return false;
+	}
+
+	try {
+		if (conf.Root().IsExist("player_mgr") && conf.Root()["player_mgr"][0].IsExist("define")) {
+			_saveInterval = conf.Root()["player_mgr"][0]["define"][0].GetAttributeInt32("save");
+			_recoverTimeout = conf.Root()["player_mgr"][0]["define"][0].GetAttributeInt32("recover");
+		}
+		else {
+			_saveInterval = SAVE_INTERVAL;
+			_recoverTimeout = RECOVER_TIMEOUT;
+		}
+	}
+	catch (std::exception& e) {
+		hn_error("Load Player Manager Config : {}", e.what());
+		return false;
+	}
+
 	Cluster::Instance().Get().Register(rpc_def::ACTIVE_ACTOR).AddOrder(*this, &PlayerMgr::Order).AddCallback<128>(*this, &PlayerMgr::Active).Comit();
 	Cluster::Instance().Get().Register(rpc_def::DEACTIVE_ACTOR).AddOrder(*this, &PlayerMgr::Order).AddCallback<128>(*this, &PlayerMgr::Deactive).Comit();
 	Cluster::Instance().Get().Register(rpc_def::DELIVER_MESSAGE).AddOrder(*this, &PlayerMgr::Order).AddCallback<128>(*this, &PlayerMgr::DealMessage).Comit();
@@ -127,7 +148,7 @@ rpc_def::KickPlayerAck PlayerMgr::Kill(int64_t actor, int32_t reason) {
 void PlayerMgr::StartSaveTimer(Object * obj) {
 	hn_ticker * ticker = (hn_ticker *)obj->Get<object::Player::save_timer>();
 	if (!ticker) {
-		ticker = new hn_ticker(SAVE_INTERVAL, 1);
+		ticker = new hn_ticker(_saveInterval, 1);
 
 		obj->Set<object::Player::save_timer>((int64_t)ticker);
 
@@ -198,7 +219,7 @@ bool PlayerMgr::Read(Object * obj, rpc_def::RoleData& data) {
 void PlayerMgr::StartRecoverTimer(Object * obj) {
 	hn_ticker * ticker = (hn_ticker *)obj->Get<object::Player::recover_timer>();
 	if (!ticker) {
-		ticker = new hn_ticker(RECOVER_TIMEOUT, 1);
+		ticker = new hn_ticker(_recoverTimeout, 1);
 
 		obj->Set<object::Player::recover_timer>((int64_t)ticker);
 

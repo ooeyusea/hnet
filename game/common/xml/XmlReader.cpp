@@ -107,6 +107,12 @@ namespace olib {
 
 		virtual bool IsExist(const char * name) const { return _objects.find(name) != _objects.end(); }
 
+		void Append(const TiXmlElement * element) {
+			LoadAttrs(element);
+			LoadChildren(element);
+			LoadText(element);
+		}
+
 	private:
 		const Value * FindAttr(const char * attr) const {
 			auto itr = _attrs.find(attr);
@@ -184,6 +190,12 @@ namespace olib {
 		}
 		
 		_root = new XmlObject(root);
+
+		for (auto * node = root->FirstChildElement("include"); node; node = node->NextSiblingElement("include")) {
+			if (!LoadInclude(node->Attribute("path")))
+				return false;
+		}
+
 		return true;
 	}
 
@@ -206,4 +218,27 @@ namespace olib {
 	const IXmlObject& XmlReader::Root() const {
 		return *_root;
 	}
+
+	bool XmlReader::LoadInclude(const char * path) {
+		TiXmlDocument doc;
+		if (!doc.LoadFile(path)) {
+			throw std::logic_error("can't find xml file");
+			return false;
+		}
+
+		const TiXmlElement * root = doc.RootElement();
+		if (root == nullptr) {
+			throw std::logic_error("core xml format error");
+			return false;
+		}
+
+		((XmlObject*)_root)->Append(root);
+
+		for (auto * node = root->FirstChildElement("include"); node; node = node->NextSiblingElement("include")) {
+			if (!LoadInclude(node->Attribute("path")))
+				return false;
+		}
+		return true;
+	}
 }
+

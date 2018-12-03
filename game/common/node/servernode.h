@@ -45,6 +45,8 @@ private:
 
 	std::list<std::function<void(int8_t service, int16_t id)>> _openListeners;
 	std::list<std::function<void(int8_t service, int16_t id)>> _closeListeners;
+
+	int32_t _reconnectInterval;
 };
 
 #endif //__SERVER_NODE_H__

@@ -5,12 +5,34 @@
 #include "rpcdefine.h"
 #include "errordefine.h"
 #include "zone.h"
+#include "XmlReader.h"
 
 #define MAX_KICK_COUNT 3
 #define GATE_LOST_TIMEOUT 5000
 
 bool Account::Start() {
 	srand((int32_t)util::GetTimeStamp());
+
+	olib::XmlReader conf;
+	if (!conf.LoadXml("conf.xml")) {
+		return false;
+	}
+
+	try {
+
+		if (conf.Root().IsExist("account") && conf.Root()["account"][0].IsExist("define")) {
+			_maxKickCount = conf.Root()["account"][0]["define"][0].GetAttributeInt32("max_kick");
+			_gateLostTimeout = conf.Root()["account"][0]["define"][0].GetAttributeInt32("timeout");
+		}
+		else {
+			_maxKickCount = MAX_KICK_COUNT;
+			_gateLostTimeout = GATE_LOST_TIMEOUT;
+		}
+	}
+	catch (std::exception& e) {
+		hn_error("Load Account Config : {}", e.what());
+		return false;
+	}
 
 	Cluster::Instance().Get().Register(rpc_def::BIND_ACCOUNT).AddCallback<256>([this](const std::string& userId, int16_t zone) -> rpc_def::BindAccountAck {
 		rpc_def::BindAccountAck ack;
@@ -19,7 +41,7 @@ bool Account::Start() {
 			UserTable::UnitType::Locker lock(ptr);
 			User * user = ptr->Get();
 			if (user) {
-				if (user->gateId > 0 && user->fd > 0 && user->kickCount > MAX_KICK_COUNT) {
+				if (user->gateId > 0 && user->fd > 0 && user->kickCount > _maxKickCount) {
 					try {
 						bool ok = Cluster::Instance().Get().Call(Cluster::Instance().ServiceId(node_def::GATE, user->gateId))
 							.Do<bool, 128, int32_t, const std::string&>(rpc_def::KICK_USER, user->fd, userId, (int32_t)err_def::OTHER_USER_LOGIN);
@@ -127,7 +149,7 @@ Account::Gate * Account::Choose(int16_t zone) {
 		int32_t start = rand() % MAX_ZONE_ID;
 		for (int32_t i = 0; i < MAX_ZONE_ID; ++i) {
 			Gate& gate = _gates[zone - 1][(i + start) % MAX_ZONE_ID];
-			if (gate.id != 0 && (now - gate.activeTime) < GATE_LOST_TIMEOUT) {
+			if (gate.id != 0 && (now - gate.activeTime) < _gateLostTimeout) {
 				if (ret == nullptr || ret->count > gate.count)
 					ret = &gate;
 			}

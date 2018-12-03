@@ -95,10 +95,10 @@ namespace hyper_net {
 
 			fmt::memory_buffer w;
 			if (index != 0u) {
-				fmt::format_to(w, SPDLOG_FILENAME_T("{}_{:04d}-{:02d}-{:02d}.{}{}"), basename, now.tm_year + 1900, now.tm_mon + 1, now.tm_mday, index, ext);
+				fmt::format_to(w, SPDLOG_FILENAME_T("{}_{:04d}{:02d}{:02d}.{}{}"), basename, now.tm_year + 1900, now.tm_mon + 1, now.tm_mday, index, ext);
 			}
 			else
-				fmt::format_to(w, SPDLOG_FILENAME_T("{}_{:04d}-{:02d}-{:02d}{}"), basename, now.tm_year + 1900, now.tm_mon + 1, now.tm_mday, ext);
+				fmt::format_to(w, SPDLOG_FILENAME_T("{}_{:04d}{:02d}{:02d}{}"), basename, now.tm_year + 1900, now.tm_mon + 1, now.tm_mday, ext);
 
 			return fmt::to_string(w);
 		}
@@ -126,21 +126,26 @@ namespace hyper_net {
 		try {
 			spdlog::init_thread_pool(Options::Instance().GetLoggerQueueSize(), Options::Instance().GetLogThread());
 
+			spdlog::level::level_enum l;
 			std::vector<spdlog::sink_ptr> sinks;
 			if (Options::Instance().IsLogConsole()) {
 				sinks.push_back(std::make_shared<StdoutColorSink>());
 				sinks[0]->set_level(spdlog::level::trace);
+				l = spdlog::level::trace;
 			}
+			else
+				l = (spdlog::level::level_enum)Options::Instance().GetLoggerLevel();
 
 			std::string filename = "log/";
 			filename += Options::Instance().GetExeName();
 			filename += ".log";
 
 			sinks.push_back(std::make_shared<DailyRotatingFileSink<spin_mutex>>(filename, Options::Instance().GetLoggerFileSize()));
-			sinks[1]->set_level((spdlog::level::level_enum)Options::Instance().GetLoggerLevel());
+			(*sinks.rbegin())->set_level((spdlog::level::level_enum)Options::Instance().GetLoggerLevel());
 
 			g_logger = std::make_shared<spdlog::async_logger>("lg", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
 			g_logger->set_pattern("[%H:%M:%S.%e][%l]%v");
+			g_logger->set_level(l);
 		}
 		catch (spdlog::spdlog_ex& e) {
 			printf("%s\n", e.what());

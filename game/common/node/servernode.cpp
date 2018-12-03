@@ -52,8 +52,15 @@ bool Cluster::Start() {
 				listenPort = servers[i].GetAttributeInt32("port");
 			}
 		}
+
+		if (conf.Root().IsExist("cluster_define") && conf.Root()["cluster_define"][0].HasAttribute("reconnect")) {
+			_reconnectInterval = conf.Root()["cluster_define"][0].GetAttributeInt32("reconnect");
+		}
+		else
+			_reconnectInterval = RECONNECT_INVERVAL;
 	}
 	catch (std::exception& e) {
+		hn_error("Load Cluster Config : {}", e.what());
 		return false;
 	}
 
@@ -127,7 +134,7 @@ void Cluster::RequestSevice(int8_t service, int16_t id, const std::string& ip, i
 				}
 			}
 
-			hn_sleep RECONNECT_INVERVAL;
+			hn_sleep _reconnectInterval;
 		}
 	};
 }

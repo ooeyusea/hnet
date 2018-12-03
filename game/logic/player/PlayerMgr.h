@@ -43,6 +43,9 @@ private:
 	inline int64_t Order(int64_t actor) {
 		return actor;
 	}
+
+	int32_t _saveInterval;
+	int32_t _recoverTimeout;
 };
 
 extern PlayerMgr g_playerMgr;

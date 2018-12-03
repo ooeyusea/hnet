@@ -59,7 +59,7 @@ public:
 		return g_instance;
 	}
 
-	void Start();
+	void Start(int32_t saveInterval, int32_t recoverTimeout);
 
 private:
 	RoleCache() {}
@@ -69,6 +69,8 @@ private:
 
 private:
 	RoleTable _roles;
+	int32_t _saveInterval;
+	int32_t _recoverTimeout;
 };
 
 #endif //__ROLE_CACHE_H__

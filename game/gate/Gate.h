@@ -38,6 +38,8 @@ private:
 
 	spin_mutex _mutex;
 	std::map<int32_t, Session*> _sessions;
+
+	int32_t _delay = 0;
 };
 
 #endif //__GATE_H__

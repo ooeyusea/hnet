@@ -41,7 +41,7 @@ bool Gate::Start() {
 		return true;
 	}).Comit();
 
-	hn_sleep DELAY_OPEN_INTERVAL;
+	hn_sleep _delay;
 
 	_listenFd = hn_listen("0.0.0.0", _listenPort);
 	if (_listenFd < 0)
@@ -96,13 +96,21 @@ bool Gate::ReadConf() {
 				_listenPort = servers[i].GetAttributeInt32("port");
 			}
 		}
+
+		if (conf.Root().IsExist("gate") && conf.Root()["gate"][0].IsExist("define"))
+			_delay = conf.Root()["gate"][0]["define"][0].GetAttributeInt32("delay");
+		else
+			_delay = DELAY_OPEN_INTERVAL;
 	}
 	catch (std::exception& e) {
+		hn_error("Load Gate Config : {}", e.what());
 		return false;
 	}
 
-	if (_listenPort == 0)
+	if (_listenPort == 0) {
+		hn_error("must set gate open port");
 		return false;
+	}
 
 	return true;
 }
