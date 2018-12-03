@@ -5,6 +5,7 @@
 #include "hnet.h"
 #include "timer.h"
 #include "net.h"
+#include "logger.h"
 
 extern void start(int32_t argc, char ** argv);
 
@@ -22,6 +23,9 @@ namespace hyper_net {
 
 	int32_t Scheduler::Start(int32_t argc, char ** argv) {
 		Options::Instance().Setup(argc, argv);
+		if (!InitLogger())
+			return -1;
+
 		NetEngine::Instance();
 		TimerMgr::Instance();
 

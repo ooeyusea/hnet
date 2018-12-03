@@ -46,7 +46,9 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/src/comutex"
 	"${PROJECT_SOURCE_DIR}/src/async"
 	"${PROJECT_SOURCE_DIR}/src/public"
+	"${PROJECT_SOURCE_DIR}/src/logger"
 	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/include"
+	"${PROJECT_SOURCE_DIR}/../thirdparty/spdlog/include"
 )
 
 IF(WIN32)
@@ -70,6 +72,7 @@ SET(SRC
 	"${PROJECT_SOURCE_DIR}/include/hnet_channel.h"
 	"${PROJECT_SOURCE_DIR}/include/hnet_stream.h"
 	"${PROJECT_SOURCE_DIR}/include/hnet_rpc.h"
+	"${PROJECT_SOURCE_DIR}/include/hnet_logger.h"
 	"${PROJECT_SOURCE_DIR}/src/main.cpp"
 )
 
@@ -85,6 +88,11 @@ SET(COROUTINE
 SET(COMUTEX
     "${PROJECT_SOURCE_DIR}/src/comutex/comutex.h"
 	"${PROJECT_SOURCE_DIR}/src/comutex/comutex.cpp"
+)
+
+SET(LOGGER
+    "${PROJECT_SOURCE_DIR}/src/logger/logger.h"
+	"${PROJECT_SOURCE_DIR}/src/logger/logger.cpp"
 )
 
 SET(COCHANNEL
@@ -143,6 +151,7 @@ SOURCE_GROUP(comutex FILES ${COMUTEX})
 SOURCE_GROUP(channel FILES ${COCHANNEL})
 SOURCE_GROUP(async FILES ${ASYNC})
 SOURCE_GROUP(rpc FILES ${CORPC})
+SOURCE_GROUP(logger FILES ${LOGGER})
 SOURCE_GROUP(\\ FILES ${SRC})
 
 ADD_LIBRARY(hnet STATIC
@@ -156,6 +165,7 @@ ADD_LIBRARY(hnet STATIC
 	${OPTIONS}
 	${COCHANNEL}
 	${CORPC}
+	${LOGGER}
 )
 
 SET(LIBRARY_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/../bin")

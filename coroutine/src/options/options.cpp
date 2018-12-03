@@ -4,6 +4,18 @@
 
 namespace hyper_net {
 	void Options::Setup(int32_t argc, char ** argv) {
+		
+#ifdef WIN32
+		const char * start = strrchr(argv[0], '\\') + 1;
+#else
+		const char * start = strrchr(argv[0], '/') + 1;
+#endif
+		const char * p = strchr(start, '.');
+		if (p)
+			_exeName.assign(start, p - argv[0]);
+		else
+			_exeName = start;
+
 		_maxP = std::thread::hardware_concurrency() * 2;
 		_minP = std::thread::hardware_concurrency();
 
@@ -23,5 +35,12 @@ namespace hyper_net {
 		_protectStack = true;
 		_defaultStackSize = DEFAULT_STACK_SIZE;
 		_minStackSize = MIN_STACK_SIZE;
+
+
+		_loggerQueueSize = 4096;
+		_loggerFileSize = 50 * 1024 * 1024;
+		_loggerThread = 1;
+		_loggerConsole = true;
+		_loggerLevel = 2;
 	}
 }

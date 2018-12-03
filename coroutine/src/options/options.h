@@ -1,6 +1,7 @@
 #ifndef __OPTIONS_H__
 #define __OPTIONS_H__
 #include "util.h"
+#include <string>
 
 namespace hyper_net {
 	class Options {
@@ -11,6 +12,8 @@ namespace hyper_net {
 			static Options g_instance;
 			return g_instance;
 		}
+
+		const char * GetExeName() const { return _exeName.c_str(); }
 
 		inline int32_t GetMaxProcesser() const { return _maxP; }
 		inline int32_t GetMinProcesser() const { return _minP; }
@@ -25,9 +28,17 @@ namespace hyper_net {
 		inline int32_t GetDefaultStackSize() const { return _defaultStackSize; }
 		inline int32_t GetMinStackSize() const { return _minStackSize; }
 
+		inline int32_t GetLoggerQueueSize() const { return _loggerQueueSize; }
+		inline int32_t GetLoggerFileSize() const { return _loggerFileSize; }
+		inline int32_t GetLogThread() const { return _loggerThread; }
+		inline bool IsLogConsole() const { return _loggerConsole; }
+		inline int32_t GetLoggerLevel() const { return _loggerLevel; }
+
 	private:
 		Options() {}
 		~Options() {}
+
+		std::string _exeName;
 
 		int32_t _maxP;
 		int32_t _minP;
@@ -41,6 +52,12 @@ namespace hyper_net {
 		bool _protectStack;
 		int32_t _defaultStackSize;
 		int32_t _minStackSize;
+
+		int32_t _loggerQueueSize;
+		int32_t _loggerFileSize;
+		int32_t _loggerThread;
+		bool _loggerConsole;
+		int32_t _loggerLevel;
 	};
 }
 

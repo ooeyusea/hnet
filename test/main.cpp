@@ -306,6 +306,10 @@ void test_rpc_client() {
 }
 
 void start(int32_t argc, char ** argv) {
+	hn_info("case:{}", argv[1]);
+	hn_debug("case:{}", argv[1]);
+	hn_trace("case:{}", argv[1]);
+	hn_warn("case:{}", argv[1]);
 	if (strcmp(argv[1], "server") == 0)
 		test_server();
 	else if (strcmp(argv[1], "long") == 0)

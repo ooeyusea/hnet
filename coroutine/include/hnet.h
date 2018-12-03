@@ -29,5 +29,5 @@ namespace hyper_net {
 #include "hnet_mutex.h"
 #include "hnet_async.h"
 #include "hnet_rpc.h"
-
+#include "hnet_logger.h"
 #endif // !__HNET_H__
