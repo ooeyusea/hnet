@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<config>
+	<cluster type="1">
+		<connect type="3" />
+	</cluster>
+	<cluster type="2">
+		<connect type="3" />
+		<connect type="4" />
+		<connect type="5" />
+	</cluster>
+	<cluster type="4">
+		<connect type="3" />
+		<connect type="5" />
+	</cluster>
+	<cluster type="5">
+		<connect type="3" />
+	</cluster>
+</config>

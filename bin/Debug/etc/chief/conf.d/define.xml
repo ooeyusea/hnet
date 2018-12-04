@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<config>
+	<player_mgr>
+		<define save="180000" recover="360000" />
+	</player_mgr>
+	
+	<gate>
+		<define delay="15000" />
+	</gate>
+	
+	<cache>
+		<define account_timeout="360000" save="360000" role_timeout="86400000" />
+	</cache>
+	
+	<account>
+		<define max_kick="3" timeout="5000" />
+	</account>
+</config>

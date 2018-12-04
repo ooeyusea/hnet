@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<config>
+	<include path="conf.d/cluster.xml" />
+	<include path="conf.d/server.xml" />
+	<include path="conf.d/mysql.xml" />
+	<include path="conf.d/define.xml" />
+</config>
