@@ -10,7 +10,7 @@
 #define DELAY_OPEN_INTERVAL 15000
 
 Gate::Gate() {
-	Argument::Instance().RegArgument("node", 0, _gateId);
+	Argument::Instance().RegArgument("id", 0, _gateId);
 }
 
 bool Gate::Start() {
@@ -18,6 +18,8 @@ bool Gate::Start() {
 		return false;
 
 	Cluster::Instance().Get().Register(rpc_def::KICK_USER).AddCallback<128>([this](int32_t fd, const std::string& userId, int32_t reason) {
+		hn_info("session {}:{} kicked for reason: {}", fd, userId, reason);
+
 		bool kick = false;
 		int32_t version = 0;
 		{
@@ -44,9 +46,12 @@ bool Gate::Start() {
 	hn_sleep _delay;
 
 	_listenFd = hn_listen("0.0.0.0", _listenPort);
-	if (_listenFd < 0)
+	if (_listenFd < 0) {
+		hn_error("listen port {} failed", _listenPort);
 		return false;
+	}
 
+	hn_info("listen port {} success", _listenPort);
 	return true;
 }
 
@@ -81,19 +86,19 @@ void Gate::Release() {
 }
 
 bool Gate::ReadConf() {
-	olib::XmlReader conf;
-	if (!conf.LoadXml("conf.xml")) {
-		return false;
-	}
-
 	try {
+		olib::XmlReader conf;
+		if (!conf.LoadXml(_conf.c_str())) {
+			return false;
+		}
+
 		auto& servers = conf.Root()["server"];
 		for (int32_t i = 0; i < servers.Count(); ++i) {
 			int8_t type = servers[i].GetAttributeInt8("type");
 			int16_t id = servers[i].GetAttributeInt16("id");
 
 			if (type == node_def::GATE && id == _gateId) {
-				_listenPort = servers[i].GetAttributeInt32("port");
+				_listenPort = servers[i].GetAttributeInt32("open_port");
 			}
 		}
 

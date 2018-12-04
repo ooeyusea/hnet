@@ -179,20 +179,33 @@ namespace olib {
 	bool XmlReader::LoadXml(const char * path) {
 		TiXmlDocument doc;
 		if (!doc.LoadFile(path)) {
-			throw std::logic_error("can't find xml file");
+			throw std::logic_error(std::string("can't find xml file:") + path);
 			return false;
 		}
 
 		const TiXmlElement * root = doc.RootElement();
 		if (root == nullptr) {
-			throw std::logic_error("core xml format error");
+			throw std::logic_error(std::string("core xml format error") + path);
 			return false;
 		}
 		
 		_root = new XmlObject(root);
 
+#ifdef WIN32
+		const char * baseEnd = strrchr(path, '\\');
+#else
+		const char * baseEnd = strrchr(path, '/');
+#endif
 		for (auto * node = root->FirstChildElement("include"); node; node = node->NextSiblingElement("include")) {
-			if (!LoadInclude(node->Attribute("path")))
+			std::string includePath = baseEnd ? (std::string(path, baseEnd - path) + "/" + node->Attribute("path")) : node->Attribute("path");
+#ifdef WIN32
+			std::transform(includePath.begin(), includePath.end(), includePath.begin(), [](char c) {
+				if (c == '/')
+					return '\\';
+				return c;
+			});
+#endif
+			if (!LoadInclude(includePath.c_str()))
 				return false;
 		}
 
@@ -222,20 +235,33 @@ namespace olib {
 	bool XmlReader::LoadInclude(const char * path) {
 		TiXmlDocument doc;
 		if (!doc.LoadFile(path)) {
-			throw std::logic_error("can't find xml file");
+			throw std::logic_error(std::string("can't find xml file:") + path);
 			return false;
 		}
 
 		const TiXmlElement * root = doc.RootElement();
 		if (root == nullptr) {
-			throw std::logic_error("core xml format error");
+			throw std::logic_error(std::string("core xml format error") + path);
 			return false;
 		}
 
 		((XmlObject*)_root)->Append(root);
 
+#ifdef WIN32
+		const char * baseEnd = strrchr(path, '\\');
+#else
+		const char * baseEnd = strrchr(path, '/');
+#endif
 		for (auto * node = root->FirstChildElement("include"); node; node = node->NextSiblingElement("include")) {
-			if (!LoadInclude(node->Attribute("path")))
+			std::string includePath = baseEnd ? (std::string(path, baseEnd - path) + "/" + node->Attribute("path")) : node->Attribute("path");
+#ifdef WIN32
+			std::transform(includePath.begin(), includePath.end(), includePath.begin(), [](char c) {
+				if (c == '/')
+					return '\\';
+				return c;
+			});
+#endif
+			if (!LoadInclude(includePath.c_str()))
 				return false;
 		}
 		return true;

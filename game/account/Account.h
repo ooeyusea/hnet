@@ -4,8 +4,10 @@
 #include "locktable.h"
 #include "spin_mutex.h"
 #include "nodedefine.h"
+#include "conf.h"
+#include <vector>
 
-class Account {
+class Account : public Conf {
 	struct User {
 		int16_t gateId = 0;
 		int8_t kickCount = 0;
@@ -25,7 +27,11 @@ class Account {
 	typedef LockTable<std::string, User, spin_mutex, fake_mutex> UserTable;
 
 public:
-	Account() {}
+	Account() {
+		_gates.resize(MAX_ZONE);
+		for (auto& v : _gates)
+			v.resize(MAX_ZONE_ID);
+	}
 	~Account() {}
 
 	bool Start();
@@ -41,7 +47,7 @@ private:
 
 	UserTable _users;
 
-	Gate _gates[MAX_ZONE][MAX_ZONE_ID];
+	std::vector<std::vector<Gate>> _gates;
 
 	int32_t _maxKickCount;
 	int32_t _gateLostTimeout;

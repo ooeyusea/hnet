@@ -1,8 +1,9 @@
 #ifndef __LOGINGATE_H__
 #define __LOGINGATE_H__
 #include "hnet.h"
+#include "conf.h"
 
-class LoginGate {
+class LoginGate : public Conf {
 public:
 	LoginGate();
 	~LoginGate() {}

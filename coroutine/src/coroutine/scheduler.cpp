@@ -45,7 +45,7 @@ namespace hyper_net {
 			DispatchThread();
 		}).detach();
 
-		hn_fork hn_stack(1024 * 1024) [argc, argv]{
+		hn_fork hn_stack(64 * 1024 * 1024) [argc, argv]{
 			start(argc, argv);
 		};
 

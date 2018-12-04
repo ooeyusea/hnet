@@ -7,7 +7,7 @@
 #include "argument.h"
 
 LoginGate::LoginGate() {
-	Argument::Instance().RegArgument("node", 0, _loginGateId);
+	Argument::Instance().RegArgument("id", 0, _loginGateId);
 }
 
 bool LoginGate::Start() {
@@ -15,9 +15,12 @@ bool LoginGate::Start() {
 		return false;
 
 	_listenFd = hn_listen("0.0.0.0", _listenPort);
-	if (_listenFd < 0)
+	if (_listenFd < 0) {
+		hn_error("listen port {} failed", _listenPort);
 		return false;
+	}
 
+	hn_info("listen port {} success", _listenPort);
 	return true;
 }
 
@@ -54,19 +57,19 @@ void LoginGate::Terminate() {
 }
 
 bool LoginGate::ReadConf() {
-	olib::XmlReader conf;
-	if (!conf.LoadXml("conf.xml")) {
-		return false;
-	}
-
 	try {
+		olib::XmlReader conf;
+		if (!conf.LoadXml(_conf.c_str())) {
+			return false;
+		}
+
 		auto& servers = conf.Root()["server"];
 		for (int32_t i = 0; i < servers.Count(); ++i) {
 			int8_t type = servers[i].GetAttributeInt8("type");
 			int16_t id = servers[i].GetAttributeInt16("id");
 
 			if (type == node_def::LOGINGATE && id == _loginGateId) {
-				_listenPort = servers[i].GetAttributeInt32("port");
+				_listenPort = servers[i].GetAttributeInt32("open_port");
 			}
 		}
 	}

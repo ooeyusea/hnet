@@ -7,6 +7,7 @@
 #include  <mysql/mysql.h>
 #endif
 #include <vector>
+#include "conf.h"
 
 class MysqlExecutor {
 public:
@@ -69,7 +70,7 @@ public:
 		std::string _dbName;
 		std::string _host;
 		std::string _unixHandler;
-		int32_t _port;
+		int32_t _port = 3306;
 		uint32_t _clientFlag;
 		std::string  _charset;
 	};
@@ -100,7 +101,7 @@ private:
 	hyper_net::IAsyncQueue * _queue;
 };
 
-class MysqlMgr {
+class MysqlMgr : public Conf {
 public:
 	static MysqlMgr& Instance() {
 		static MysqlMgr g_instance;

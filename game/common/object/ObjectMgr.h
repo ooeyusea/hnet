@@ -33,15 +33,19 @@ public:
 	bool Register() {
 		auto itr = _models.find(T::type);
 		if (itr != _models.end()) {
+			hn_info("type {} already register.", T::type);
 			return false;
 		}
 
 		ObjectDescriptor desc;
 		if (!desc.Setup<typename T>()) {
+			hn_info("type {} register failed.", T::type);
 			return false;
 		}
 
 		_models.insert(std::make_pair(T::type, desc));
+
+		hn_info("type {} register success.", T::type);
 		return true;
 	}
 

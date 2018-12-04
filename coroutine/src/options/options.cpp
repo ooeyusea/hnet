@@ -6,10 +6,11 @@ namespace hyper_net {
 	void Options::Setup(int32_t argc, char ** argv) {
 		
 #ifdef WIN32
-		const char * start = strrchr(argv[0], '\\') + 1;
+		const char * start = strrchr(argv[0], '\\');
 #else
-		const char * start = strrchr(argv[0], '/') + 1;
+		const char * start = strrchr(argv[0], '/');
 #endif
+		start = start ? start + 1 : argv[0];
 		const char * p = strchr(start, '.');
 		if (p)
 			_exeName.assign(start, p - start);

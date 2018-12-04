@@ -14,20 +14,19 @@ struct ClusterServer {
 };
 
 Cluster::Cluster() {
-	Argument::Instance().RegArgument("type", 0, _service);
-	Argument::Instance().RegArgument("node", 0, _id);
+	Argument::Instance().RegArgument("id", 0, _id);
 }
 
 bool Cluster::Start() {
-	olib::XmlReader conf;
-	if (!conf.LoadXml("conf.xml")) {
-		return false;
-	}
-
 	int32_t listenPort = 0;
 	std::vector<ClusterServer> connectServers;
 
 	try {
+		olib::XmlReader conf;
+		if (!conf.LoadXml(_conf.c_str())) {
+			return false;
+		}
+
 		std::set<int8_t> connects;
 
 		auto& clusters = conf.Root()["cluster"];
@@ -45,7 +44,7 @@ bool Cluster::Start() {
 			int8_t type = servers[i].GetAttributeInt8("type");
 			int16_t id = servers[i].GetAttributeInt16("id");
 
-			if (type != _service && id != _id && connects.find(type) != connects.end()) {
+			if ((type != _service || id != _id) && connects.find(type) != connects.end()) {
 				connectServers.push_back({ type, id, servers[i].GetAttributeString("ip"), servers[i].GetAttributeInt32("port") });
 			}
 			else if (type == _service && id == _id && servers[i].HasAttribute("port")) {
@@ -66,13 +65,17 @@ bool Cluster::Start() {
 
 	if (listenPort > 0) {
 		if (!ProvideService(listenPort)) {
+			hn_error("Listen port {} failed", listenPort);
 			return false;
 		}
+
+		hn_info("cluster listen port {}", listenPort);
 	}
 
 	for (auto& server : connectServers)
 		RequestSevice(server.type, server.id, server.ip, server.port);
 
+	hn_info("cluster start complte.");
 	return true;
 }
 
@@ -82,36 +85,42 @@ bool Cluster::ProvideService(int32_t port) {
 		return false;
 	}
 
-	while (!_terminate) {
-		int32_t fd = hn_accept(listenFd);
-		if (fd > 0) {
-			hn_fork [fd, this]{
-				char buff[sizeof(int32_t)];
-				int32_t& serviceId = *(int32_t*)buff;
+	hn_fork [this, listenFd]() {
+		while (!_terminate) {
+			int32_t fd = hn_accept(listenFd);
+			if (fd > 0) {
+				hn_fork[fd, this]{
+					char buff[sizeof(int32_t)];
+					int32_t& serviceId = *(int32_t*)buff;
 
-				int32_t pos = 0;
-				while (pos < sizeof(buff)) {
-					int32_t len = hn_recv(fd, buff + pos, sizeof(buff) - pos);
-					if (len < 0)
-						return;
+					int32_t pos = 0;
+					while (pos < sizeof(int32_t)) {
+						int32_t len = hn_recv(fd, buff + pos, sizeof(buff) - pos);
+						if (len < 0)
+							return;
 
-					pos += len;
-				}
+						pos += len;
+					}
 
-				_rpc.Attach(serviceId, fd);
+					hn_info("service {} connected {}", serviceId, fd);
 
-				for (auto& f : _openListeners) {
-					f((serviceId >> 16) & 0xFF, serviceId & 0xFFFF);
-				}
+					_rpc.Attach(serviceId, fd);
 
-				_rpc.Start(serviceId, fd);
+					for (auto& f : _openListeners) {
+						f((serviceId >> 16) & 0xFF, serviceId & 0xFFFF);
+					}
 
-				for (auto& f : _closeListeners) {
-					f((serviceId >> 16) & 0xFF, serviceId & 0xFFFF);
-				}
-			};
+					_rpc.Start(serviceId, fd);
+
+					for (auto& f : _closeListeners) {
+						f((serviceId >> 16) & 0xFF, serviceId & 0xFFFF);
+					}
+
+					hn_info("service {} disconnected {}", serviceId, fd);
+				};
+			}
 		}
-	}
+	};
 
 	return true;
 }
@@ -121,6 +130,11 @@ void Cluster::RequestSevice(int8_t service, int16_t id, const std::string& ip, i
 		while (!_terminate) {
 			int32_t fd = hn_connect(ip.c_str(), port);
 			if (fd > 0) {
+				hn_info("service {} connected {}", ServiceId(service, id), fd);
+
+				int32_t serviceId = ServiceId(_service, _id);
+				hn_send(fd, (const char *)&serviceId, sizeof(serviceId));
+
 				_rpc.Attach(ServiceId(service, id), fd);
 
 				for (auto& f : _openListeners) {
@@ -132,6 +146,8 @@ void Cluster::RequestSevice(int8_t service, int16_t id, const std::string& ip, i
 				for (auto& f : _closeListeners) {
 					f(service, id);
 				}
+
+				hn_info("service {} disconnected {}", ServiceId(service, id), fd);
 			}
 
 			hn_sleep _reconnectInterval;

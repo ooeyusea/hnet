@@ -32,40 +32,49 @@ bool Role::Load(int64_t roleId) {
 		MysqlExecutor::ResultSet rs;
 		int32_t ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(roleId, sql, rs);
 		if (ret < 0) {
+			hn_error("load role {} data from db failed", roleId);
 			return false;
 		}
 
 		if (!rs.Next()) {
+			hn_error("load role {} data from db has no role", roleId);
 			return false;
 		}
 
 		int16_t selfZone = ZONE_FROM_ID(Cluster::Instance().GetId());
 		int16_t zone = rs.ToInt16(0);
 		if (selfZone != zone) {
+			hn_info("role {} zone is not match {}/{}", roleId, selfZone, zone);
+
 			try {
 				int32_t cacheId = Cluster::Instance().ServiceId(node_def::CACHE, ID_FROM_ZONE(zone, ID_FROM_ID(Cluster::Instance().GetId())));
 				bool kicked = Cluster::Instance().Get().Call(cacheId).Do<bool, 128>(rpc_def::KILL_ACTOR_CACHE, roleId, selfZone);
 				if (!kicked) {
+					hn_error("role {} kill from zone {} failed", roleId, zone);
 					return false;
 				}
 
 				rs.CloseResult();
 				ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(roleId, sql, rs);
 				if (ret < 0) {
+					hn_error("role {} reload from db failed", roleId);
 					return false;
 				}
 
 				if (!rs.Next()) {
+					hn_error("role {} reload from db failed", roleId);
 					return false;
 				}
 			}
 			catch (hn_rpc_exception & e) {
+				hn_error("role {} kill from zone {} rpc failed {}", roleId, zone, e.what());
 				return false;
 			}
 		}
 
 		_name = rs.ToString(1);
 
+		hn_info("role {} load data success", roleId);
 		_loadData = true;
 	}
 
@@ -88,6 +97,8 @@ void Role::StartLanding(int64_t roleId, int64_t timeout) {
 
 			delete ticker;
 		};
+
+		hn_info("role {} start landing", roleId);
 	}
 }
 
@@ -118,6 +129,8 @@ void Role::StartRecover(int64_t roleId, int64_t timeout) {
 
 			delete ticker;
 		};
+
+		hn_info("role {} start recover", roleId);
 	}
 }
 
@@ -140,13 +153,17 @@ bool Role::Kick(int64_t roleId) {
 				.Do<rpc_def::KickPlayerAck, 128>(rpc_def::KILL_ACTOR, roleId, (int32_t)err_def::KICK_BY_ACCOUNT);
 
 			if (!kicked.test) {
+				hn_error("role {} kick from logic failed", roleId);
 				return false;
 			}
 
 			if (kicked.data.test)
 				Save(kicked.data.data);
+
+			hn_info("role {} kick from logic", roleId);
 		}
 		catch (hn_rpc_exception& e) {
+			hn_error("role {} kick from logic rpc failed {}", roleId, e.what());
 			return false;
 		}
 	}
@@ -158,6 +175,8 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 	_recoverTimeout = recoverTimeout;
 
 	Cluster::Instance().Get().Register(rpc_def::LOAD_ACTOR).AddCallback<MAX_ROLE_DATA>([this](int64_t roleId, int16_t logic) -> rpc_def::TestData<rpc_def::RoleData, int32_t, 0> {
+		hn_info("role {} load from logic", roleId);
+
 		rpc_def::TestData<rpc_def::RoleData, int32_t, 0> ack;
 		auto ptr = _roles.FindCreate(roleId);
 		if (ptr) {
@@ -165,6 +184,8 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 			Role * role = ptr->Get();
 			if (role) {
 				if (!role->Load(roleId)) {
+					hn_error("role {} load data failed", roleId);
+
 					ack.test = err_def::LOAD_ROLE_FAILED;
 
 					_roles.Remove(roleId, [&ptr]() {
@@ -179,6 +200,7 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 				role->StopRecover();
 				role->Pack(ack.data);
 
+				hn_info("role {} load data complete", roleId);
 				return ack;
 			}
 		}
@@ -190,6 +212,7 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 	}).Comit();
 	
 	Cluster::Instance().Get().Register(rpc_def::SAVE_ACTOR).AddCallback<256>([this](int64_t roleId, const rpc_def::RoleData& data, bool remove) {
+		hn_trace("role {} save from logic", roleId);
 		auto ptr = _roles.FindCreate(roleId);
 		if (ptr) {
 			RoleTable::UnitType::Locker lock(ptr);
@@ -208,20 +231,28 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 	}).Comit();
 
 	Cluster::Instance().Get().Register(rpc_def::KILL_ACTOR_CACHE).AddCallback<256>([this](int64_t roleId, int16_t zone) {
+		hn_info("role {} kill cache from zone {}", roleId, zone);
+
 		auto ptr = _roles.FindCreate(roleId);
 		if (ptr) {
 			RoleTable::UnitType::Locker lock(ptr);
 			Role * role = ptr->Get();
 			if (role) {
-				if (!role->Kick(roleId))
+				if (!role->Kick(roleId)) {
+					hn_error("role {} kick from logic failed stop clear cache", roleId);
 					return false;
+				}
 
-				if (!role->Landing(roleId))
+				if (!role->Landing(roleId)) {
+					hn_error("role {} landing failed stop clear cache", roleId);
 					return false;
+				}
 				role->StopLanding();
 
 				if (!TransforTo(roleId, zone))
 					return false;
+
+				hn_info("role {} transfor to zone {}", roleId, zone);
 				role->StopRecover();
 
 				_roles.Remove(roleId, [&ptr]() {
@@ -232,7 +263,10 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 		else {
 			if (!TransforTo(roleId, zone))
 				return false;
+
+			hn_info("role {} transfor to zone {}", roleId, zone);
 		}
+		return true;
 	}).AddOrder([](int64_t roleId) -> int64_t {
 		return roleId;
 	}).Comit();
@@ -246,7 +280,11 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 				if (!role->Landing(roleId)) {
 					role->StopLanding();
 					role->StartLanding(roleId, _saveInterval);
+
+					hn_error("role {} landing failed delay landing", roleId);
 				}
+
+				hn_trace("role {} landing success", roleId);
 			}
 		}
 	}).AddOrder([](int64_t roleId) -> int64_t {
@@ -262,9 +300,12 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 				if (!role->Landing(roleId)) {
 					role->StopRecover();
 					role->StartRecover(roleId, _recoverTimeout);
+
+					hn_error("role {} landing failed delay remove", roleId);
 					return false;
 				}
 				role->StopLanding();
+				hn_info("role {} removed", roleId);
 
 				_roles.Remove(roleId, [&ptr]() {
 					ptr->Release();
@@ -272,6 +313,7 @@ void RoleCache::Start(int32_t saveInterval, int32_t recoverTimeout) {
 			}
 			return true;
 		}
+		return true;
 	}).AddOrder([](int64_t roleId) -> int64_t {
 		return roleId;
 	}).Comit();

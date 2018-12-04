@@ -3,8 +3,9 @@
 #include "hnet.h"
 #include "nodedefine.h"
 #include "locktable.h"
+#include "conf.h"
 
-class Cache {
+class Cache : public Conf {
 public:
 	Cache() {}
 	~Cache() {}

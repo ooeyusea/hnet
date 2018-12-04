@@ -23,12 +23,12 @@ PlayerMgr::PlayerMgr() {
 }
 
 bool PlayerMgr::Initialize() {
-	olib::XmlReader conf;
-	if (!conf.LoadXml("conf.xml")) {
-		return false;
-	}
-
 	try {
+		olib::XmlReader conf;
+		if (!conf.LoadXml(_conf.c_str())) {
+			return false;
+		}
+
 		if (conf.Root().IsExist("player_mgr") && conf.Root()["player_mgr"][0].IsExist("define")) {
 			_saveInterval = conf.Root()["player_mgr"][0]["define"][0].GetAttributeInt32("save");
 			_recoverTimeout = conf.Root()["player_mgr"][0]["define"][0].GetAttributeInt32("recover");
@@ -61,8 +61,13 @@ int32_t PlayerMgr::Active(int64_t actor, const std::string& userId, int32_t fd, 
 
 		StopRecoverTimer(obj);
 
-		if (old == 0)
+		if (old == 0) {
 			g_eventMgr.Do(event_def::PLAYER_CONNECT, *obj);
+			hn_info("Player {}:{} reconnect from gate {}:{}", actor, userId, gate, fd);
+		}
+		else {
+			hn_warn("Player {}:{} reconnect from gate {}:{}, but player is not disconnect.", actor, userId, gate, fd);
+		}
 	}
 	else {
 		obj = g_objectMgr.Create<object::Player>(__FILE__, __LINE__, actor);
@@ -79,6 +84,8 @@ int32_t PlayerMgr::Active(int64_t actor, const std::string& userId, int32_t fd, 
 				.Do<rpc_def::TestData<rpc_def::RoleData, int32_t, 0>, 128>(rpc_def::LOAD_ACTOR, actor, logic);
 
 			if (!data.test && Read(obj, data.data)) {
+				hn_critical("Player {}:{} connect from gate {}:{}, load data failed.", actor, userId, gate, fd);
+
 				g_eventMgr.Do(event_def::OBJECT_DESTROY, *obj);
 				g_eventMgr.Do(event_def::PLAYER_DESTROY, *obj);
 
@@ -91,15 +98,19 @@ int32_t PlayerMgr::Active(int64_t actor, const std::string& userId, int32_t fd, 
 
 			g_eventMgr.Do(event_def::PLAYER_LOAD_COMPLETE, *obj);
 			g_eventMgr.Do(event_def::PLAYER_CONNECT, *obj);
+
+			hn_critical("Player {}:{} connect from gate {}:{}, load data complete.", actor, userId, gate, fd);
 		}
 		catch (hn_rpc_exception) {
-
+			hn_critical("Player {}:{} connect from gate {}:{}, load data rpc failed.", actor, userId, gate, fd);
 		}
 	}
 	return err_def::NONE;
 }
 
 void PlayerMgr::Deactive(int64_t actor) {
+	hn_info("Player {} disconnected.", actor);
+
 	Object * obj = g_objectMgr.FindObject(actor);
 	if (obj) {
 		obj->Set<object::Player::gate>(0);
@@ -141,6 +152,8 @@ rpc_def::KickPlayerAck PlayerMgr::Kill(int64_t actor, int32_t reason) {
 		g_eventMgr.Do(event_def::OBJECT_DESTROY, *obj);
 		g_eventMgr.Do(event_def::PLAYER_DESTROY, *obj);
 		g_objectMgr.Recove(obj);
+
+		hn_info("Player {} kicked for reason {}.", actor, reason);
 	}
 	return ret;
 }
@@ -165,6 +178,8 @@ void PlayerMgr::StartSaveTimer(Object * obj) {
 
 			delete ticker;
 		};
+
+		hn_trace("Player {} start save data", obj->GetID());
 	}
 }
 
@@ -174,6 +189,8 @@ void PlayerMgr::StopSaveTimer(Object * obj) {
 		ticker->Stop();
 
 		obj->Set<object::Player::save_timer>(0);
+
+		hn_trace("Player {} stop save data", obj->GetID());
 	}
 }
 
@@ -194,10 +211,12 @@ bool PlayerMgr::SaveObject(Object * obj, bool remove) {
 		Pack(obj, data);
 
 		Cluster::Instance().Get().Call(logicIdx).Do<MAX_ROLE_DATA, int64_t, const rpc_def::RoleData&>(rpc_def::SAVE_ACTOR, obj->GetID(), data, remove);
+
+		hn_trace("Player {} saved data", obj->GetID());
 		return true;
 	}
 	catch (hn_rpc_exception) {
-		
+		hn_error("Player {} saved data rpc failed", obj->GetID());
 	}
 	return false;
 }
@@ -236,6 +255,8 @@ void PlayerMgr::StartRecoverTimer(Object * obj) {
 
 			delete ticker;
 		};
+
+		hn_trace("Player {} start recover", obj->GetID());
 	}
 }
 
@@ -245,6 +266,8 @@ void PlayerMgr::StopRecoverTimer(Object * obj) {
 		ticker->Stop();
 
 		obj->Set<object::Player::recover_timer>(0);
+
+		hn_trace("Player {} stop recover", obj->GetID());
 	}
 }
 
@@ -258,6 +281,8 @@ void PlayerMgr::Remove(int64_t actor, int64_t ticker) {
 			g_eventMgr.Do(event_def::OBJECT_DESTROY, *obj);
 			g_eventMgr.Do(event_def::PLAYER_DESTROY, *obj);
 			g_objectMgr.Recove(obj);
+
+			hn_trace("Player {} recovered", obj->GetID());
 		}
 	}
 }

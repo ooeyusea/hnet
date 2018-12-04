@@ -5,8 +5,9 @@
 #include "Session.h"
 #include <map>
 #include "spin_mutex.h"
+#include "conf.h"
 
-class Gate {
+class Gate : public Conf {
 public:
 	Gate();
 	~Gate() {}

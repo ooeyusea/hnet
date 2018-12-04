@@ -14,6 +14,8 @@ bool Zone::Start() {
 		if (_zoneTypeCount[zone][service] < zoneId + 1)
 			_zoneTypeCount[zone][service] = zoneId + 1;
 	});
+
+	hn_info("zone module register complte.");
 	return true;
 }
 

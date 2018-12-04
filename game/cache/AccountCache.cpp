@@ -18,57 +18,78 @@ bool Account::Load(const std::string& userId) {
 
 		MysqlExecutor::ResultSet rs;
 		int32_t ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(uniqueId, sql, rs);
-		if (ret < 0)
+		if (ret < 0) {
+			hn_error("account {} load data failed", userId);
 			return false;
+		}
 
 		int16_t selfZone = ZONE_FROM_ID(Cluster::Instance().GetId());
 		if (rs.Next()) {
 			int16_t zone = rs.ToInt16(0);
 			if (selfZone != zone) {
+				hn_info("account {} zone is not match {} / {}", userId, selfZone, zone);
+
 				try {
 					int32_t cacheId = Cluster::Instance().ServiceId(node_def::CACHE, ID_FROM_ZONE(zone, ID_FROM_ID(Cluster::Instance().GetId())));
 					bool kicked = Cluster::Instance().Get().Call(cacheId).Do<bool, 128, const std::string&>(rpc_def::KILL_ACCOUNT_CACHE, userId, selfZone);
 					if (!kicked) {
+						hn_error("account {} kick from zone {} failed", userId, zone);
 						return false;
 					}
 
 					rs.CloseResult();
 					ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(uniqueId, sql, rs);
 					if (ret < 0) {
+						hn_error("account {} reload data failed", userId);
 						return false;
 					}
 
 					if (!rs.Next()) {
+						hn_error("account {} reload data failed", userId);
 						return false;
 					}
+
+					hn_info("account {} kick from zone {} success", userId, zone);
 				}
 				catch (hn_rpc_exception & e) {
+					hn_error("account {} kick from zone {} rpc failed {}", userId, zone, e.what());
 					return false;
 				}
 			}
 		}
 		else {
+			hn_info("account {} is not register, now register {}", userId, selfZone);
+
 			SafeSprintf(sql, sizeof(sql), "insert into account(userId, zone) values ('%s', %d)", userId.c_str(), selfZone);
 
 			ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(uniqueId, sql);
-			if (ret < 0)
+			if (ret < 0) {
+				hn_info("account {} is not register, now register {}", userId, selfZone);
 				return false;
+			}
 		}
 
 		rs.CloseResult();
 		SafeSprintf(sql, sizeof(sql), "select id, name from role where userId = '%s'", userId.c_str());
 		ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(uniqueId, sql);
-		if (ret < 0)
+		if (ret < 0) {
+			hn_error("account {} load role failed", userId);
 			return false;
+		}
 
 		if (rs.Next()) {
 			_hasRole = true;
 
 			_role.id = rs.ToInt64(0);
 			_role.name = rs.ToString(1);
+
+			hn_info("account {} load role {} {}", userId, _role.id, _role.name);
 		}
-		else
+		else {
 			_hasRole = false;
+
+			hn_info("account {} load role no role", userId);
+		}
 
 		_loadData = true;
 	}
@@ -82,10 +103,14 @@ bool Account::Kick(const std::string& userId) {
 				.Do<bool, 128, int32_t, const std::string&>(rpc_def::KICK_USER, _fd, userId, (int32_t)err_def::KICK_BY_ACCOUNT);
 
 			if (!kicked) {
+				hn_error("account {} kick fd {}:{} failed", userId, _gate, _fd);
 				return false;
 			}
+
+			hn_info("account {} kick fd {}:{} succcess", userId, _gate, _fd);
 		}
 		catch (hn_rpc_exception& e) {
+			hn_error("account {} kick fd {}:{} rpc failed {}", userId, _gate, _fd, e.what());
 			return false;
 		}
 	}
@@ -118,11 +143,15 @@ void Account::StartRecover(std::string userId, int64_t elapse) {
 
 			delete ticker;
 		};
+
+		hn_info("account {} start recover", userId);
 	}
 }
 
 void AccountCache::Start(int32_t accountTimeout) {
 	Cluster::Instance().Get().Register(rpc_def::LOAD_ACCOUNT).AddCallback<256>([this](const std::string& userId, int16_t gate, int32_t fd) -> rpc_def::LoadAccountAck {
+		hn_info("account {} load data {} {}", userId, gate, fd);
+
 		rpc_def::LoadAccountAck ack;
 		auto ptr = _accounts.FindCreate(userId);
 		if (ptr) {
@@ -135,11 +164,14 @@ void AccountCache::Start(int32_t accountTimeout) {
 					_accounts.Remove(userId, [&ptr]() {
 						ptr->Release();
 					});
+
+					hn_info("account {} load data failed", userId);
 					return ack;
 				}
 
 				if (!account->Kick(userId)) {
 					ack.errCode = err_def::KICK_OTHERLOGIN_FAILED;
+					hn_info("account {} kick failed", userId);
 					return ack;
 				}
 
@@ -148,6 +180,8 @@ void AccountCache::Start(int32_t accountTimeout) {
 
 				ack.errCode = err_def::NONE;
 				account->Pack(ack);
+
+				hn_info("account {} load success", userId);
 				return ack;
 			}
 		}
@@ -159,6 +193,8 @@ void AccountCache::Start(int32_t accountTimeout) {
 	}).Comit();
 
 	Cluster::Instance().Get().Register(rpc_def::RECOVER_ACCOUNT).AddCallback<256>([this](const std::string& userId, int16_t gate, int32_t fd) {
+		hn_info("account {} recover", userId, gate, fd);
+
 		auto ptr = _accounts.Find(userId);
 		if (ptr) {
 			AccountTable::UnitType::Locker lock(ptr);
@@ -173,6 +209,8 @@ void AccountCache::Start(int32_t accountTimeout) {
 	}).Comit();
 
 	Cluster::Instance().Get().Register(rpc_def::CREATE_ACTOR).AddCallback<256>([this](const std::string& userId, const rpc_def::RoleCreater& creator) {
+		hn_info("account {} create role {}", userId, creator.name);
+
 		rpc_def::CreateRoleAck ack;
 		auto ptr = _accounts.Find(userId);
 		if (ptr) {
@@ -183,12 +221,14 @@ void AccountCache::Start(int32_t accountTimeout) {
 
 				if (account->HasRole()) {
 					ack.errCode = err_def::ROLE_FULL;
+					hn_info("account {} create role {} but already has role", userId, creator.name);
 					return ack;
 				}
 
 				ack.roleId = account->CreateRole(creator);
 				ack.errCode = (ack.roleId != 0 ? err_def::NONE : err_def::CREATE_ROLE_FAILED);
 
+				hn_info("account {} create role {} success {} ", userId, creator.name, ack.roleId);
 				return ack;
 			}
 		}
@@ -200,6 +240,8 @@ void AccountCache::Start(int32_t accountTimeout) {
 	}).Comit();
 
 	Cluster::Instance().Get().Register(rpc_def::KILL_ACCOUNT_CACHE).AddCallback<256>([this](const std::string& userId, int16_t zone) {
+		hn_info("account {} kill cache from zone {}", userId, zone);
+
 		auto ptr = _accounts.Find(userId);
 		if (ptr) {
 			AccountTable::UnitType::Locker lock(ptr);
@@ -211,6 +253,8 @@ void AccountCache::Start(int32_t accountTimeout) {
 				if (zone != 0) {
 					if (!TransforTo(userId, zone))
 						return false;
+
+					hn_info("account {} transfor to zone {}", userId, zone);
 				}
 				account->StopRecover();
 
@@ -223,6 +267,8 @@ void AccountCache::Start(int32_t accountTimeout) {
 			if (zone != 0) {
 				if (!TransforTo(userId, zone))
 					return false;
+
+				hn_info("account {} transfor to zone {}", userId, zone);
 			}
 		}
 

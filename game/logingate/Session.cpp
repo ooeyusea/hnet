@@ -23,11 +23,13 @@ void Session::Start() {
 		if (!_socket.ShakeHands())
 			break;
 
+		hn_trace("session [{}=>{}:{}] connected", _socket.GetFd(), _ip, _port);
+
 		if (!Auth())
 			break;
 
 		if (_socket.IsConnected())
-			return;
+			break;
 
 		if (!BindAccount())
 			break;
@@ -38,22 +40,13 @@ void Session::Start() {
 }
 
 bool Session::Auth() {
-	int32_t size = 0;
-	const char * data = _socket.ReadFrame(size);
-	if (data == nullptr)
-		return false;
-
-	if (*(int32_t*)data != client_def::c2s::AUTH_REQ)
-		return false;
-
-	hn_istream stream(data, size);
-	hn_iachiver ar(stream, 0);
-	
 	client_def::AuthReq req;
-	ar >> req;
-
-	if (ar.Fail())
+	if (!_socket.Read(client_def::c2s::AUTH_REQ, 0, req)) {
+		hn_debug("session[{}:{}] read auth req failed", _ip, _port);
 		return false;
+	}
+
+	hn_trace("session[{}:{}] read auth req {}", _ip, _port, req.auth);
 
 	_userId = std::move(req.auth);
 	return true;
@@ -71,6 +64,8 @@ bool Session::BindAccount() {
 			rsp.errCode = ack.errCode;
 
 			_socket.Write<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+
+			hn_trace("session[{}:{}] bind auth {} failed {}", _ip, _port, _userId, rsp.errCode);
 			return false;
 		}
 
@@ -80,11 +75,15 @@ bool Session::BindAccount() {
 		rsp.port = ack.port;
 
 		_socket.Write<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+
+		hn_info("session[{}:{}] bind auth {} success for check [{}:{}]:{}", _ip, _port, _userId, ack.ip, ack.port, rsp.check);
 		return true;
 	}
 	catch (hn_rpc_exception& e) {
 		rsp.errCode = err_def::AUTH_TIMEOUT;
 		_socket.Write<128>(client_def::s2c::AUTH_RSP, 0, rsp);
+
+		hn_trace("session[{}:{}] bind auth {} timeout", _ip, _port, _userId);
 		return false;
 	}
 }

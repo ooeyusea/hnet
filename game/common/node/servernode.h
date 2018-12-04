@@ -2,8 +2,9 @@
 #define __SERVER_NODE_H__
 #include "hnet.h"
 #include <list>
+#include "conf.h"
 
-class Cluster {
+class Cluster : public Conf {
 public:
 	static Cluster& Instance() {
 		static Cluster g_instance;
@@ -30,6 +31,8 @@ public:
 	inline hn_rpc& Get() { return _rpc; }
 
 	inline int16_t GetId() const { return _id; }
+
+	inline void SetType(int8_t type) { _service = type; }
 
 private:
 	Cluster();

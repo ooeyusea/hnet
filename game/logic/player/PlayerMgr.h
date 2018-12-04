@@ -8,9 +8,10 @@
 #include <unordered_map>
 #include "util.h"
 #include "method.h"
+#include "conf.h"
 
 class Object;
-class PlayerMgr : public method::MethodCallor<int32_t, Object&> {
+class PlayerMgr : public method::MethodCallor<int32_t, Object&>, public Conf{
 	struct Method {
 		std::function<void(Object * obj, hn_iachiver & ar)> fn;
 		char file[MAX_PATH_SIZE];

@@ -13,13 +13,11 @@ bool InitializorMgr::DoStep(Step& step) {
 		return true;
 
 	if (step.traveled) {
+		hn_error("initialize step {} looped.", step.name);
 		return false;
 	}
 
 	step.traveled = true;
-
-	if (!step.fn())
-		return false;
 
 	for (auto & must : step.must) {
 		auto itr = _steps.find(must);
@@ -28,6 +26,7 @@ bool InitializorMgr::DoStep(Step& step) {
 				return false;
 		}
 		else {
+			hn_error("initialize step {} need init pre step {}.", step.name, must);
 			return false;
 		}
 	}
@@ -40,6 +39,12 @@ bool InitializorMgr::DoStep(Step& step) {
 		}
 	}
 
+	if (!step.fn()) {
+		hn_error("initialize step {} failed.", step.name);
+		return false;
+	}
+
 	step.inited = true;
+	hn_info("initialize step {} complete.", step.name);
 	return true;
 }

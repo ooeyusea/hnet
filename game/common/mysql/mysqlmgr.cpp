@@ -3,6 +3,8 @@
 #include <string.h>
 #include <thread>
 #include "XmlReader.h"
+#include "argument.h"
+
 #define RECONNECT_SLEEP_TIME 300
 #define RECONNECT_TIME_OUT 10000
 
@@ -17,11 +19,12 @@ MysqlExecutor::Connection::~Connection() {
 bool MysqlExecutor::Connection::Open(const char * dsn) {
 	const char * start = strstr(dsn, ":");
 	if (!start) {
+		hn_error("dsn format failed {} ", dsn);
 		return false;
 	}
 
 	bool last = false;
-	const char * blockStart = start;
+	const char * blockStart = start + 1;
 	while (!last) {
 		const char * blockEnd = strstr(blockStart, ";");
 		if (!blockEnd) {
@@ -31,6 +34,7 @@ bool MysqlExecutor::Connection::Open(const char * dsn) {
 
 		const char * seq = strstr(blockStart, "=");
 		if (!seq) {
+			hn_error("dsn format failed {} ", dsn);
 			return false;
 		}
 
@@ -53,6 +57,8 @@ bool MysqlExecutor::Connection::Open(const char * dsn) {
 			_port = atoi(value.c_str());
 		else if (key == "client_flag")
 			_clientFlag = (uint32_t)atoll(value.c_str());
+
+		blockStart = blockEnd + 1;
 	}
 	return Reopen();
 }
@@ -62,6 +68,7 @@ bool MysqlExecutor::Connection::Reopen() {
 	mysql_init(&_handler);
 
 	if (mysql_real_connect(&_handler, _host.c_str(), _user.c_str(), _passwd.c_str(), _dbName.c_str(), _port, _unixHandler.c_str(), _clientFlag) == NULL) {
+		hn_error("open mysql {}:{} {} failed : {}", _host, _port, _dbName, mysql_error(&_handler));
 		return false;
 	}
 
@@ -70,10 +77,12 @@ bool MysqlExecutor::Connection::Reopen() {
 
 	if (!_charset.empty()) {
 		if (mysql_set_character_set(&_handler, _charset.c_str())) {
+			hn_error("open mysql {}:{} {} set charset {} failed : {}", _host, _port, _dbName, _charset, mysql_error(&_handler));
 			return false;
 		}
 	}
 
+	hn_info("open mysql {}:{} {} success", _host, _port, _dbName);
 	return true;
 }
 
@@ -100,7 +109,7 @@ int32_t MysqlExecutor::Connection::Execute(const char* sql) {
 			return (int32_t)mysql_affected_rows(&_handler);
 	}
 
-	//mysql_errno(&_handler); mysql_error(&_handler);
+	hn_error("execute failed {} for {}", mysql_error(&_handler), sql);
 
 	return -1;
 }
@@ -120,7 +129,7 @@ int32_t MysqlExecutor::Connection::Execute(const char* sql, ResultSet& rs) {
 		}
 	}
 
-	//mysql_errno(&_handler); mysql_error(&_handler);
+	hn_error("execute failed {} for {}", mysql_error(&_handler), sql);
 
 	return -1;
 }
@@ -323,15 +332,18 @@ int32_t MysqlExecutor::Execute(uint64_t idx, const char* sql, ResultSet& rs) {
 }
 
 bool MysqlMgr::Start() {
-	olib::XmlReader conf;
-	if (!conf.LoadXml("conf.xml")) {
-		return false;
-	}
-
 	try {
-		_threadCount = conf.Root()["mysql_mgr"][0].GetAttributeInt32("thread_count");
+		olib::XmlReader conf;
+		if (!conf.LoadXml(_conf.c_str())) {
+			return false;
+		}
+
+		_threadCount = conf.Root()["mysql"][0].GetAttributeInt32("thread_count");
+
+		hn_info("mysql thread count {}", _threadCount);
 	}
 	catch (std::exception& e) {
+		hn_error("read mysql config failed {}", e.what());
 		return false;
 	}
 
@@ -343,6 +355,7 @@ bool MysqlMgr::Start() {
 			info.ret = info.executor->OnExecute(info.idx, info.sql);
 	});
 
+	hn_info("mysql start complete");
 	return true;
 }
 
@@ -350,7 +363,10 @@ MysqlExecutor * MysqlMgr::Open(const char * dsn) {
 	MysqlExecutor * executor = new MysqlExecutor(_queue);
 	if (!executor->Open(dsn, _threadCount)) {
 		delete executor;
+		hn_error("mysql open failed dsn {} ", dsn);
 		return nullptr;
 	}
+
+	hn_info("mysql open dsn {} ", dsn);
 	return executor;
 }
