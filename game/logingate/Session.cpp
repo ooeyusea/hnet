@@ -37,6 +37,8 @@ void Session::Start() {
 
 	_socket.Close();
 	co.Wait();
+
+	hn_trace("session [{}=>{}:{}] disconnect", _socket.GetFd(), _ip, _port);
 }
 
 bool Session::Auth() {
@@ -83,7 +85,7 @@ bool Session::BindAccount() {
 		rsp.errCode = err_def::AUTH_TIMEOUT;
 		_socket.Write<128>(client_def::s2c::AUTH_RSP, 0, rsp);
 
-		hn_trace("session[{}:{}] bind auth {} timeout", _ip, _port, _userId);
+		hn_trace("session[{}:{}] bind auth {} timeout {}", _ip, _port, _userId, e.what());
 		return false;
 	}
 }

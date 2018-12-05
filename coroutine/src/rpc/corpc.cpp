@@ -54,17 +54,17 @@ namespace hyper_net {
 		}
 	};
 
-	class RpcLineBrokenException : RpcException {
+	class RpcLineBrokenException : public RpcException {
 	public:
 		virtual char const* what() const noexcept { return "rpc pipe broken"; }
 	};
 
-	class RpcTooLargePacketException : RpcException {
+	class RpcTooLargePacketException : public RpcException {
 	public:
 		virtual char const* what() const noexcept { return "rpc too large packet"; }
 	};
 
-	class RpcDecodeFailedException : RpcException {
+	class RpcDecodeFailedException : public RpcException {
 	public:
 		virtual char const* what() const noexcept { return "rpc decode failed"; }
 	};

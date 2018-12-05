@@ -98,6 +98,7 @@ namespace websocket {
 				}
 
 				_recvPos += len;
+				_waitParsed = true;
 			}
 		}
 

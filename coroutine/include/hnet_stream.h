@@ -52,27 +52,27 @@ namespace hyper_net {
 		}
 
 		OArchiver& operator&(std::string& str) {
-			*this & (int)str.size();
+			*this & (int16_t)str.size();
 			_stream.write(str.c_str(), str.size());
 
 			return *this;
 		}
 
 		OArchiver& operator&(const std::string& str) {
-			*this & (int)str.size();
+			*this & (int16_t)str.size();
 			_stream.write(str.c_str(), str.size());
 			return *this;
 		}
 
 		OArchiver& operator&(char* str) {
-			int32_t len = strlen(str);
+			int16_t len = strlen(str);
 			*this & len;
 			_stream.write(str, len);
 			return *this;
 		}
 
 		OArchiver& operator&(const char* str) {
-			int32_t len = strlen(str);
+			int16_t len = strlen(str);
 			*this & len;
 			_stream.write(str, len);
 			return *this;
@@ -205,7 +205,7 @@ namespace hyper_net {
 		}
 
 		IArchiver& operator&(std::string& str) {
-			int32_t len = 0;
+			int16_t len = 0;
 			*this & len;
 			_stream.read(str, len);
 
