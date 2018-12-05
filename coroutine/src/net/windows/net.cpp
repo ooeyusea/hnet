@@ -291,7 +291,7 @@ namespace hyper_net {
 							*remotePort = ntohs(remote.sin_port);
 
 						if (remoteIp)
-							inet_ntop(AF_INET, (sockaddr*)&remote, remoteIp, remoteIpSize);
+							inet_ntop(AF_INET, &remote.sin_addr, remoteIp, remoteIpSize);
 					}
 					else {
 						sockaddr_in6 remote;
@@ -302,7 +302,7 @@ namespace hyper_net {
 							*remotePort = ntohs(remote.sin6_port);
 
 						if (remoteIp)
-							inet_ntop(AF_INET6, (sockaddr*)&remote, remoteIp, remoteIpSize);
+							inet_ntop(AF_INET6, &remote.sin6_addr, remoteIp, remoteIpSize);
 					}
 
 					int32_t comingFd = Apply(coming);

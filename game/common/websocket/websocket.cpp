@@ -23,7 +23,7 @@ namespace websocket {
 		while (len > 0) {
 			pos += len;
 
-			if (OPENING_FRAME != ParseHandshake((uint8_t*)msg, pos)) {
+			if (OPENING_FRAME == ParseHandshake((uint8_t*)msg, pos)) {
 
 				std::string anwser = AnswerHandshake();
 				hn_send(_fd, anwser.data(), (int32_t)anwser.size());
