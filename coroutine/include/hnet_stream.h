@@ -1,6 +1,8 @@
 ﻿#ifndef __HNET_STREAM_H__
 #define __HNET_STREAM_H__
 #include <string>
+#include <ios>
+#include <string.h>
 
 namespace hyper_net {
 	struct DeliverBuffer {

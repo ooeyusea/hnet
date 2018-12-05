@@ -1,9 +1,9 @@
 #include "hnet.h"
-#include "SimpleIni.h"
 #include <stdio.h>
 #include <string.h>
 #include <vector>
 #include "election.h"
+#include "XmlReader.h"
 
 class ZooKeeper {
 public:
@@ -32,62 +32,52 @@ private:
 };
 
 bool ZooKeeper::Start() {
-	CSimpleIniA ini(true, true, true);
-	ini.Reset();
-	if (ini.LoadFile("zookeeper.ini") < 0)
-		return false;
+	try {
+		olib::XmlReader conf;
+#ifdef WIN32
+		if (conf.LoadXml("etc/zookeeper/conf.xml"))
+#else
+		if (conf.LoadXml("/etc/zookeeper/conf.xml"))
+#endif
+			return false;
 
-	_id = ini.GetLongValue("zookeeper", "id");
-	if (_id == 0) {
-		printf("zookeeper: invalid id\n");
-		return false;
-	}
-
-	_clientPort = ini.GetLongValue("zookeeper", "clientport");
-
-	int32_t idx = 0;
-	while (true) {
-		++idx;
-
-		char key[64] = { 0 };
-		snprintf(key, 63, "server.%d", idx);
-
-		const char * value = ini.GetValue("zookeeper", key);
-		if (!value)
-			break;
-
-		const char * pos = strstr(value, ":");
-		if (!pos) {
-			printf("zookeeper: invalid server config\n");
+		_id = conf.Root()["zookeeper"][0].GetAttributeInt32("id");
+		if (_id == 0) {
+			printf("zookeeper: invalid id\n");
 			return false;
 		}
 
-		const char * pos1 = strstr(pos + 1, ":");
-		if (!pos) {
-			printf("zookeeper: invalid server config\n");
-			return false;
-		}
+		_clientPort = conf.Root()["zookeeper"][0].GetAttributeInt32("clientport");
 
-		std::string ip(value, pos);
-		int32_t electionPort = atoi(std::string(pos + 1, pos1 - pos - 1).c_str());
-		int32_t votePort = atoi(std::string(pos1 + 1).c_str());
+		const auto& servers = conf.Root()["zookeeper"][0]["server"];
+		for (int32_t i = 0; i < servers.Count(); ++i) {
 
-		if (idx == _id) {
-			_ip = ip;
-			_electionPort = electionPort;
-			_votePort = votePort;
+			int32_t idx = conf.Root()["zookeeper"][0]["server"][i].GetAttributeInt32("id");
+			std::string ip = conf.Root()["zookeeper"][0]["server"][i].GetAttributeString("ip");
+			int32_t electionPort = conf.Root()["zookeeper"][0]["server"][i].GetAttributeInt32("election");
+			int32_t votePort = conf.Root()["zookeeper"][0]["server"][i].GetAttributeInt32("vote");
+
+			if (idx == _id) {
+				_ip = ip;
+				_electionPort = electionPort;
+				_votePort = votePort;
+			}
+			else
+				_servers.push_back({ idx, ip, electionPort, votePort });
 		}
-		else
-			_servers.push_back({ idx, ip, electionPort, votePort });
+	}
+	catch (std::exception& e) {
+		printf("zookeeper load config failed : %s\n", e.what());
+		return false;
 	}
 
-	if (idx % 2 != 0) {
+	if (_servers.size() % 2 != 0) {
 		printf("zookeeper: server count must old\n");
 		return false;
 	}
 
 	if (!_election.Start(_servers.size() + 1, _ip, _electionPort, _servers)) {
-		printf("zookeeper: election start failed");
+		printf("zookeeper: election start failed\n");
 		return false;
 	}
 

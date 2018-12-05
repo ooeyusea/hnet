@@ -31,7 +31,8 @@ ENDIF(WIN32)
 
 INCLUDE_DIRECTORIES(
     "${PROJECT_SOURCE_DIR}/../coroutine/include"
-	"${PROJECT_SOURCE_DIR}/ini"
+	"${PROJECT_SOURCE_DIR}/xml"
+	"${PROJECT_SOURCE_DIR}/xml/tinyxml"
 	"${PROJECT_SOURCE_DIR}/election"
 	"${PROJECT_SOURCE_DIR}/"
 )
@@ -40,10 +41,19 @@ LINK_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/lib"
 )
 
-SET(INI
-	"${PROJECT_SOURCE_DIR}/ini/SimpleIni.h"
+SET(XML
+	"${PROJECT_SOURCE_DIR}/xml/XmlReader.h"
+	"${PROJECT_SOURCE_DIR}/xml/XmlReader.cpp"
 )
 
+SET(TINYXML
+	"${PROJECT_SOURCE_DIR}/xml/tinyxml/tinystr.cpp"
+	"${PROJECT_SOURCE_DIR}/xml/tinyxml/tinystr.h"
+	"${PROJECT_SOURCE_DIR}/xml/tinyxml/tinyxml.cpp"
+	"${PROJECT_SOURCE_DIR}/xml/tinyxml/tinyxml.h"
+	"${PROJECT_SOURCE_DIR}/xml/tinyxml/tinyxmlerror.cpp"
+	"${PROJECT_SOURCE_DIR}/xml/tinyxml/tinyxmlparser.cpp"
+)
 SET(ELECTION
 	"${PROJECT_SOURCE_DIR}/election/election.h"
 	"${PROJECT_SOURCE_DIR}/election/election.cpp"
@@ -61,14 +71,16 @@ SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
 )
 
-SOURCE_GROUP(ini FILES ${INI})
+SOURCE_GROUP(xml FILES ${XML})
+SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
 SOURCE_GROUP(election FILES ${ELECTION})
 SOURCE_GROUP(paxos FILES ${PAXOS})
 SOURCE_GROUP(\\ FILES ${SRC})
 
 ADD_EXECUTABLE(zookeeper
 	${SRC}
-	${INI}
+	${XML}
+	${TINYXML}
 	${ELECTION}
 	${PAXOS}
 )

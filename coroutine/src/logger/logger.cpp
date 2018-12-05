@@ -7,9 +7,6 @@
 #include "options.h"
 #include "spin_mutex.h"
 #include <string>
-#include <filesystem>
-
-namespace fs = std::experimental::filesystem;
 
 #define DAY_INTERVAL 24 * 3600 * 1000
 
@@ -25,7 +22,11 @@ namespace hyper_net {
 		}
 	};
 
+#ifdef WIN32
 	using StdoutColorSink = spdlog::sinks::wincolor_sink<spdlog::details::console_stdout, console_mutex>;
+#else
+	using StdoutColorSink = spdlog::sinks::ansicolor_sink<spdlog::details::console_stdout, console_mutex>;
+#endif
 
 	template<typename Mutex>
 	class DailyRotatingFileSink final : public spdlog::sinks::base_sink<Mutex> {
@@ -106,7 +107,7 @@ namespace hyper_net {
 		inline std::string CalcFilename(tm now) {
 			while (true) {
 				std::string filename = CalcFilename(_baseFilename, now, _nextIdx++);
-				if (!fs::exists(filename))
+				if (!spdlog::details::os::file_exists(filename))
 					return filename;
 			}
 		}

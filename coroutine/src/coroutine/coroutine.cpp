@@ -60,6 +60,7 @@ namespace hyper_net {
 #endif
 
 	Coroutine::Coroutine(const CoFuncType& f, int32_t stackSize) {
+		_flag.store(0);
 		_fn = f;
 #ifndef USE_FCONTEXT
 		_ctx = CreateFiberEx(0, 0, FIBER_FLAG_FLOAT_SWITCH, Coroutine::CoroutineProc, this);

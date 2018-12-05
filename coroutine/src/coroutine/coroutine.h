@@ -85,7 +85,7 @@ namespace hyper_net {
 		int32_t _stackSize;
 		void * _temp;
 
-		std::atomic<int32_t> _flag = 0;
+		std::atomic<int32_t> _flag;
 	};
 }
 

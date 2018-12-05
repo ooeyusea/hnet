@@ -395,7 +395,7 @@ namespace hyper_net {
 					IBufferStream istream((const char*)context, size);
 					IArchiver<IBufferStream> reader(istream, 0);
 
-					Callback<buffSize, R>::Deal<C, Args...>(reader, ret, c, fn);
+					Callback<buffSize, R>::Deal(reader, ret, c, fn);
 				};
 				return *this;
 			}

@@ -210,7 +210,7 @@ namespace hyper_net {
 #ifdef WIN32
 				else if (InterlockedCompareExchangeNoFence(&service.serviceId, serviceId, 0) == 0) {
 #else
-				else if (__sync_bool_compare_and_swap(&service.serviceId, 0, serviceid)) {
+				else if (__sync_bool_compare_and_swap(&service.serviceId, 0, serviceId)) {
 #endif
 					service.fd = fd;
 					return service;
@@ -610,7 +610,7 @@ namespace hyper_net {
 #ifdef WIN32
 							if (InterlockedCompareExchangeNoFence(&_waits[check->second->idx], 0, state) == state) {
 #else
-							if (__sync_bool_compare_and_swap(&_waits[idx], seq, 0)) {
+							if (__sync_bool_compare_and_swap(&_waits[check->second->idx], state, 0)) {
 #endif
 								WaitState& state = (*(WaitState*)check->second->state);
 								state.state = RpcHeader::OP_RESPOND_TIMEOUT;
