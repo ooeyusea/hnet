@@ -9,6 +9,7 @@ namespace node_def {
 		ACCOUNT = 3,
 		LOGIC = 4,
 		CACHE = 5,
+		ID = 6,
 		COUNT,
 	};
 }

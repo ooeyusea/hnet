@@ -20,7 +20,7 @@ public:
 	inline int32_t GetFd() const { return _fd; }
 	
 	inline bool HasRole() const { return _hasRole; }
-	int64_t CreateRole(const rpc_def::RoleCreater& creator);
+	int64_t CreateRole(const std::string& userId, const rpc_def::RoleCreater& creator);
 
 	void Pack(rpc_def::LoadAccountAck& ack);
 

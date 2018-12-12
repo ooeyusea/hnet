@@ -92,6 +92,7 @@ void Role::StartLanding(int64_t roleId, int64_t timeout) {
 					Cluster::Instance().Get().Call(hyper_net::JUST_CALL).Do<128, int64_t>(rpc_def::LANDING_ACTOR, roleId);
 				}
 				catch (hn_rpc_exception & e) {
+					hn_error("role landing rpc failed {}", e.what());
 				}
 			}
 
@@ -105,7 +106,7 @@ void Role::StartLanding(int64_t roleId, int64_t timeout) {
 bool Role::Landing(int64_t roleId) {
 	char sql[MAX_LANDING_SQL_SIZE];
 	int32_t len = SafeSprintf(sql, sizeof(sql), "update role set name = '");
-	int32_t size = Holder<MysqlExecutor, db_def::GAME>::Instance()->EscapeString(_name.c_str(), _name.size(), sql + len);
+	int32_t size = Holder<MysqlExecutor, db_def::GAME>::Instance()->EscapeString(_name.c_str(), (int32_t)_name.size(), sql + len);
 	len += size;
 	SafeSprintf(sql + len, sizeof(sql) - len, "' where roleId = %lld", roleId);
 	
@@ -124,6 +125,7 @@ void Role::StartRecover(int64_t roleId, int64_t timeout) {
 					Cluster::Instance().Get().Call(hyper_net::JUST_CALL).Do<128, int64_t>(rpc_def::REMOVE_ACTOR_CACHE, roleId, rpc_def::JustCallPtr<hn_ticker>{ticker});
 				}
 				catch (hn_rpc_exception & e) {
+					hn_error("role recover rpc failed {}", e.what());
 				}
 			}
 

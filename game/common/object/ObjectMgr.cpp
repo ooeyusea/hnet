@@ -1,6 +1,7 @@
 #include "ObjectMgr.h"
 #include <thread>
 #include "Object.h"
+#include "id/id.h"
 
 ObjectMgr g_objectMgr;
 
@@ -16,7 +17,9 @@ void ObjectMgr::Destroy() {
 
 Object * ObjectMgr::Create(const char * file, const int32_t line, int32_t type, int64_t id) {
 	if (id == 0) {
-
+		id = IdGeter::Instance().Get();
+		if (id == 0)
+			return nullptr;
 	}
 
     auto itr = _models.find(type);

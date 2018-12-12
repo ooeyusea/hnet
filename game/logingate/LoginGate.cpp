@@ -74,6 +74,7 @@ bool LoginGate::ReadConf() {
 		}
 	}
 	catch (std::exception& e) {
+		hn_error("read conf failed {}", e.what());
 		return false;
 	}
 

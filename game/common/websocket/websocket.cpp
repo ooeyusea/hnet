@@ -293,8 +293,8 @@ namespace websocket {
 
 	std::vector<std::string> WebSocket::Explode(const std::string& str, const char * delimiter, bool isIncludeEmptystrings) {
 		std::vector<std::string> thestringvector;
-		int32_t start = 0, end = 0, length = 0;
-		int32_t delimiterSize = strlen(delimiter);
+		std::string::size_type start = 0, end = 0, length = 0;
+		int32_t delimiterSize = (int32_t)strlen(delimiter);
 
 		while (end != std::string::npos) {
 			end = str.find(delimiter, start);

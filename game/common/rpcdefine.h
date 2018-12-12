@@ -1,6 +1,7 @@
 #ifndef _RPCDEFINE_H__
 #define _RPCDEFINE_H__
 #include "hnet.h"
+#include <vector>
 
 namespace rpc_def {
 	const int32_t BIND_ACCOUNT = 1;
@@ -24,6 +25,7 @@ namespace rpc_def {
 	const int32_t KILL_ACTOR = 19;
 	const int32_t TRIGGER_SAVE_ACTOR = 20;
 	const int32_t REMOVE_ACTOR = 21;
+	const int32_t GET_ID = 22;
 
 	struct BindAccountAck {
 		int32_t errCode;
@@ -101,6 +103,17 @@ namespace rpc_def {
 		}
 	};
 
+	struct Range {
+		int64_t start;
+		int64_t end;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & start;
+			ar & end;
+		}
+	};
+
 	template <typename T, typename Test, Test check>
 	struct TestData {
 		Test test;
@@ -128,5 +141,6 @@ namespace rpc_def {
 	};
 
 	typedef rpc_def::TestData<rpc_def::TestData<rpc_def::RoleData, bool, true>, bool, true> KickPlayerAck;
+	typedef rpc_def::TestData<Range, bool, true> GetIdAck;
 }
 #endif //__NODEDEFINE_H__

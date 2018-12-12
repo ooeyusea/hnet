@@ -9,6 +9,7 @@
 #include "mysqlmgr.h"
 #include "dbdefine.h"
 #include "object_holder.h"
+#include "id/id.h"
 
 bool Account::Load(const std::string& userId) {
 	if (!_loadData) {
@@ -117,8 +118,25 @@ bool Account::Kick(const std::string& userId) {
 	return true;
 }
 
-int64_t Account::CreateRole(const rpc_def::RoleCreater& creator) {
-	return 0;
+int64_t Account::CreateRole(const std::string& userId, const rpc_def::RoleCreater& creator) {
+	int64_t id = IdGeter::Instance().Get();
+	if (id == 0)
+		return 0;
+
+	int16_t selfZone = ZONE_FROM_ID(Cluster::Instance().GetId());
+	int64_t uniqueId = util::CalcUniqueId(userId.c_str());
+
+	char sql[1024];
+	SafeSprintf(sql, sizeof(sql), "insert into `role`(`id`, `userId`, `name`, `zone`) values (%lld, '%s', '%s', %d)", id, userId.c_str(), creator.name.c_str(), selfZone);
+	int32_t ret = Holder<MysqlExecutor, db_def::GAME>::Instance()->Execute(uniqueId, sql);
+	if (ret < 0)
+		return 0;
+
+	_hasRole = true;
+	_role.id = id;
+	_role.name = creator.name;
+
+	return id;
 }
 
 void Account::Pack(rpc_def::LoadAccountAck& ack) {
@@ -138,6 +156,8 @@ void Account::StartRecover(std::string userId, int64_t elapse) {
 					Cluster::Instance().Get().Call(hyper_net::JUST_CALL).Do<bool, 128, const std::string&>(rpc_def::KILL_ACCOUNT_CACHE, userId, 0);
 				}
 				catch (hn_rpc_exception & e) {
+					hn_error("account recover rpc failed {}", e.what());
+
 				}
 			}
 
@@ -225,7 +245,7 @@ void AccountCache::Start(int32_t accountTimeout) {
 					return ack;
 				}
 
-				ack.roleId = account->CreateRole(creator);
+				ack.roleId = account->CreateRole(userId, creator);
 				ack.errCode = (ack.roleId != 0 ? err_def::NONE : err_def::CREATE_ROLE_FAILED);
 
 				hn_info("account {} create role {} success {} ", userId, creator.name, ack.roleId);

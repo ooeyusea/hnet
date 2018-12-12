@@ -112,7 +112,7 @@ bool Session::Login() {
 		rsp.errCode = err_def::LOGIN_TIMEOUT;
 
 		_socket.Write<128>(client_def::s2c::LOGIN_RSP, 0, rsp);
-		hn_error("session {} login account {}:{} rpc failed", _socket.GetFd(), _userId, req.check);
+		hn_error("session {} login account {}:{} rpc failed {}", _socket.GetFd(), _userId, req.check, e.what());
 		return false;
 	}
 
@@ -129,7 +129,7 @@ void Session::Logout() {
 		hn_info("session {} logout {}", _socket.GetFd(), _userId);
 	}
 	catch (hn_rpc_exception& e) {
-		hn_error("session {} logout {} rpc failed", _socket.GetFd(), _userId);
+		hn_error("session {} logout {} rpc failed {}", _socket.GetFd(), _userId, e.what());
 	}
 }
 
@@ -300,7 +300,7 @@ void Session::DealPacket() {
 			Cluster::Instance().Get().Call(_logicIdx).Do<128>(rpc_def::DELIVER_MESSAGE, _role.id, hn_deliver_buffer{ data, size });
 		}
 		catch (hn_rpc_exception& e) {
-
+			hn_info("session {}:{}:{} deliver message rpc failed {} ", _socket.GetFd(), _userId, _role.id, e.what());
 		}
 
 		data = _socket.ReadFrame(size);
