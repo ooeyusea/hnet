@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<config>
+	<!-- zone 1 -->
+	<!-- logingate -->
+	<server type="1" id="33" open_port="5000" />
+	<!-- gate -->
+	<server type="2" id="33" open_port="5001" />
+	<!-- logic -->
+	<server type="4" id="33" ip="127.0.0.1" port="6001" />
+	<!-- cache -->
+	<server type="5" id="33" ip="127.0.0.1" port="6002" />
+</config>

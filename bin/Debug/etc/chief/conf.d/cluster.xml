@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <config>
+	<!-- logingate -->
 	<cluster type="1">
 		<connect type="3" />
 	</cluster>
+	<!-- gate -->
 	<cluster type="2">
 		<connect type="3" />
 		<connect type="4" />
 		<connect type="5" />
 	</cluster>
+	<!-- logic -->
 	<cluster type="4">
-		<connect type="3" />
 		<connect type="5" />
 	</cluster>
+	<!-- cache -->
 	<cluster type="5">
 		<connect type="3" />
 	</cluster>
