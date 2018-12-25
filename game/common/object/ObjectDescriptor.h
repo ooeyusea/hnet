@@ -57,10 +57,10 @@ public:
 
 	template <typename T>
 	inline bool Check() {
-		if (T::seq >= _props.size())
+		if (T::seq >= _columns.size())
 			return false;
 
-		return _props[T::seq - 1].key == T::key;
+		return _columns[T::seq - 1].key == T::key;
 	}
 
 	inline int32_t GetType() const { return _type; }

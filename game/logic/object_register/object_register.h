@@ -21,7 +21,13 @@ namespace object {
 		DECL_PROP_AFTER(save_timer, 0, int64_t, recover_timer);
 		PROP_COMIT_AFTER(save_timer);
 
-		TABLE_COMIT();
+		BEGIN_TABLE(KitchenWare);
+		DECL_COLUMN(id, int64_t, key);
+		DECL_COLUMN(level, int32_t, nokey);
+		DECL_COLUMN(exp, int64_t, nokey);
+		END_TABLE(id);
+
+		TABLE_COMIT_AFTER(KitchenWare);
 	END_CLASS();
 }
 

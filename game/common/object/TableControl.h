@@ -14,19 +14,11 @@ public:
 	~TableRow() {}
 
 	template <typename T>
-	inline typename object_def::FieldType<T>::value_type Get() {
-		typedef typename object_def::FieldType<T>::value_type value_type;
+	inline typename object_def::FieldType<T>::result_type Get() {
+		typedef typename object_def::FieldType<T>::result_type result_type;
 
 		if (!_descriptor.Check<T>())
-			return value_type();
-
-		return _memory.Get<T>();
-	};
-
-	template <typename T>
-	inline typename object_def::FieldType<T>::value_type * Get() {
-		if (!_descriptor.Check<T>())
-			return nullptr;
+			return result_type();
 
 		return _memory.Get<T>();
 	};
@@ -128,19 +120,19 @@ public:
 	template <typename TAB, typename... Args>
 	inline TableRow * FindRow(Args... args) {
 		typedef typename object_def::TableKeyTraits<typename TAB::key_type>::type traits_type;
-		return FindRow<TAB>(traits_type(), args...);
+		return FindRowTrait(traits_type(), args...);
 	}
 
 	template <typename TAB, typename... Args>
 	inline TableRow * AddRow(Args... args) {
 		typedef typename object_def::TableKeyTraits<typename TAB::key_type>::type traits_type;
-		return AddRow<TAB>(traits_type(), args...);
+		return AddRowTrait<TAB>(traits_type(), args...);
 	}
 
 	template<typename TAB>
 	inline void DelRow(TableRow * row) {
 		typedef typename object_def::TableKeyTraits<typename TAB::key_type>::type traits_type;
-		DelRow<TAB>(traits_type(), row);
+		DelRowTrait<TAB>(traits_type(), row);
 	}
 
 	inline bool empty() const {
@@ -185,14 +177,14 @@ public:
 	}
 
 private:
-	inline TableRow * FindRow(object_def::IntKey, int64_t key) {
+	inline TableRow * FindRowTrait(object_def::IntKey, int64_t key) {
 		auto itr = _intMap.find(key);
 		if (itr != _intMap.end())
 			return itr->second;
 		return nullptr;
 	}
 
-	inline TableRow * FindRow(object_def::StringKey, const char * key) {
+	inline TableRow * FindRowTrait(object_def::StringKey, const char * key) {
 		auto itr = _stringMap.find(key);
 		if (itr != _stringMap.end())
 			return itr->second;
@@ -200,7 +192,7 @@ private:
 	}
 
 	template <typename TAB>
-	inline TableRow * AddRow(object_def::IntKey, int64_t key) {
+	inline TableRow * AddRowTrait(object_def::IntKey, int64_t key) {
 		if (_intMap.find(key) != _intMap.end())
 			return nullptr;
 
@@ -213,7 +205,7 @@ private:
 	}
 
 	template <typename TAB>
-	inline TableRow * AddRow(object_def::StringKey, const char * key) {
+	inline TableRow * AddRowTrait(object_def::StringKey, const char * key) {
 		if (_stringMap.find(key) != _stringMap.end())
 			return nullptr;
 
@@ -226,7 +218,7 @@ private:
 	}
 
 	template <typename TAB>
-	inline TableRow * AddRow(object_def::NoKey) {
+	inline TableRow * AddRowTrait(object_def::NoKey) {
 		TableRow * row = new TableRow(*this, _descriptor);
 		AddRow(row);
 		return row;
@@ -243,24 +235,24 @@ private:
 	}
 
 	template <typename TAB>
-	inline void DelRow(object_def::IntKey, TableRow * row) {
+	inline void DelRowTrait(object_def::IntKey, TableRow * row) {
 		typedef typename object_def::FieldType<typename TAB::key_type>::value_type value_type;
 		value_type key = row->Get<typename TAB::key_type>();
 		_intMap.erase(key);
 
-		DelRow<TAB>(object_def::NoKey, TableRow * row);
+		DelRowTrait<TAB>(object_def::NoKey(), row);
 	}
 
 	template <typename TAB>
-	inline void DelRow(object_def::StringKey, TableRow * row) {
+	inline void DelRowTrait(object_def::StringKey, TableRow * row) {
 		const char * key = row->Get<typename TAB::key_type>();
 		_stringMap.erase(key);
 
-		DelRow<TAB>(object_def::NoKey, TableRow * row);
+		DelRowTrait<TAB>(object_def::NoKey(), row);
 	}
 
 	template <typename TAB>
-	inline void DelRow(object_def::NoKey, TableRow * row) {
+	inline void DelRowTrait(object_def::NoKey, TableRow * row) {
 		if (row->Next())
 			row->Next()->Prev() = row->Prev();
 

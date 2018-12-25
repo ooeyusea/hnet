@@ -94,12 +94,27 @@ namespace rpc_def {
 		}
 	};
 
+	struct KitchenWare {
+		int32_t id;
+		int32_t level;
+		int64_t exp;
+
+		template <typename AR>
+		void Archive(AR& ar) {
+			ar & id;
+			ar & level;
+			ar & exp;
+		}
+	};
+
 	struct RoleData {
 		std::string name;
+		std::map<int32_t, std::vector<KitchenWare>> kitchenWares;
 
 		template <typename AR>
 		void Archive(AR& ar) {
 			ar & name;
+			ar & kitchenWares;
 		}
 	};
 

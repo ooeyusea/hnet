@@ -3,11 +3,110 @@
 #include <string>
 #include <ios>
 #include <string.h>
+#include <vector>
+#include <tuple>
+#include <list>
+#include <unordered_map>
+#include <unordered_set>
+#include <map>
+#include <set>
 
 namespace hyper_net {
 	struct DeliverBuffer {
 		const char * buff;
 		int32_t size;
+	};
+
+	template <typename AR, typename T>
+	struct OArchiverHelper {
+		static AR& invoke(AR& ar, T& t) {
+			t.Archive(ar);
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct OArchiverHelper<AR, std::vector<T>> {
+		static AR& invoke(AR& ar, std::vector<T>& container) {
+			ar & (uint32_t)container.size();
+			for (auto& t : container) {
+				ar & t;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct OArchiverHelper<AR, std::list<T>> {
+		static AR& invoke(AR& ar, std::list<T>& container) {
+			ar & (uint32_t)container.size();
+			for (auto& t : container) {
+				ar & t;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct OArchiverHelper<AR, std::set<T>> {
+		static AR& invoke(AR& ar, std::set<T>& container) {
+			ar & (uint32_t)container.size();
+			for (auto& t : container) {
+				ar & t;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct OArchiverHelper<AR, std::unordered_set<T>> {
+		static AR& invoke(AR& ar, std::unordered_set<T>& container) {
+			ar & (uint32_t)container.size();
+			for (auto& t : container) {
+				ar & t;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename K, typename V>
+	struct OArchiverHelper<AR, std::map<K, V>> {
+		static AR& invoke(AR& ar, std::map<K, V>& container) {
+			ar & (uint32_t)container.size();
+			for (auto& t : container) {
+				ar & t.first;
+				ar & t.second;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename K, typename V>
+	struct OArchiverHelper<AR, std::unordered_map<K, V>> {
+		static AR& invoke(AR& ar, std::unordered_map<K, V>& container) {
+			ar & (uint32_t)container.size();
+			for (auto& t : container) {
+				ar & t.first;
+				ar & t.second;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T, int32_t Size>
+	struct OArchiverHelper<AR, T[Size]> {
+		static AR& invoke(AR& ar, T(&arr)[Size]) {
+			for (int32_t i = 0; i < Size; ++i) {
+				*this & arr[i];
+			}
+			return *this;
+		}
 	};
 
 	template <class Stream>
@@ -22,27 +121,7 @@ namespace hyper_net {
 
 		template <typename T>
 		OArchiver& operator&(T& t) {
-			t.Archive(*this);
-			return *this;
-		}
-
-		template <typename T, int32_t Size>
-		OArchiver& operator&(T(&array)[Size]) {
-			for (int32_t i = 0; i < Size; ++i) {
-				*this & array[i];
-			}
-			return *this;
-		}
-
-		template <typename T, class Alloc, template <typename, class> class Container>
-		OArchiver& operator&(const Container<T, Alloc>& container) {
-			*this & (uint32_t)container.size();
-			typename Container<T, Alloc>::const_iterator itr = container.begin();
-			for (; itr != container.end(); ++itr) {
-				*this & *itr;
-			}
-
-			return *this;
+			return OArchiverHelper<OArchiver, T>::invoke(*this, t);
 		}
 
 		template <int32_t Size>
@@ -148,6 +227,172 @@ namespace hyper_net {
 		int32_t _version;
 	};
 
+	template <typename AR, typename T>
+	struct IArchiverHelper {
+		static AR& invoke(AR& ar, T& t) {
+			t.Archive(ar);
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct IArchiverHelper<AR, std::vector<T>> {
+		static AR& invoke(AR& ar, std::vector<T>& container) {
+			uint32_t size = 0;
+			ar & size;
+
+			if (ar.Fail())
+				return ar;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				if (!ar.Fail()) {
+					T t;
+					ar & t;
+					container.push_back(t);
+				}
+				else
+					break;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct IArchiverHelper<AR, std::list<T>> {
+		static AR& invoke(AR& ar, std::list<T>& container) {
+			uint32_t size = 0;
+			ar & size;
+
+			if (ar.Fail())
+				return ar;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				if (!ar.Fail()) {
+					T t;
+					ar & t;
+					container.push_back(t);
+				}
+				else
+					break;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct IArchiverHelper<AR, std::set<T>> {
+		static AR& invoke(AR& ar, std::set<T>& container) {
+			uint32_t size = 0;
+			ar & size;
+
+			if (ar.Fail())
+				return ar;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				if (!ar.Fail()) {
+					T t;
+					ar & t;
+					container.push_back(t);
+				}
+				else
+					break;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T>
+	struct IArchiverHelper<AR, std::unordered_set<T>> {
+		static AR& invoke(AR& ar, std::unordered_set<T>& container) {
+			uint32_t size = 0;
+			ar & size;
+
+			if (ar.Fail())
+				return ar;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				if (!ar.Fail()) {
+					T t;
+					ar & t;
+					container.push_back(t);
+				}
+				else
+					break;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename K, typename V>
+	struct IArchiverHelper<AR, std::map<K, V>> {
+		static AR& invoke(AR& ar, std::map<K, V>& container) {
+			uint32_t size = 0;
+			ar & size;
+
+			if (ar.Fail())
+				return ar;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				if (!ar.Fail()) {
+					K k;
+					V v;
+					ar & k;
+					ar & v;
+
+					container.insert(std::make_pair(k, v));
+				}
+				else
+					break;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename K, typename V>
+	struct IArchiverHelper<AR, std::unordered_map<K, V>> {
+		static AR& invoke(AR& ar, std::unordered_map<K, V>& container) {
+			uint32_t size = 0;
+			ar & size;
+
+			if (ar.Fail())
+				return ar;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				if (!ar.Fail()) {
+					K k;
+					V v;
+					ar & t;
+					ar & v;
+
+					container.insert(std::make_pair(k, v));
+				}
+				else
+					break;
+			}
+
+			return ar;
+		}
+	};
+
+	template <typename AR, typename T, int32_t Size>
+	struct IArchiverHelper<AR, T[Size]> {
+		static AR& invoke(AR& ar, T(&arr)[Size]) {
+			for (int32_t i = 0; i < Size; ++i) {
+				if (!ar.Fail())
+					ar & arr[i];
+				else
+					break;
+			}
+
+			return ar;
+		}
+	};
+
 	template <class Stream>
 	class IArchiver {
 	public:
@@ -160,41 +405,7 @@ namespace hyper_net {
 
 		template <typename T>
 		IArchiver& operator&(T& t) {
-			t.Archive(*this);
-			return *this;
-		}
-
-		template <typename T, int32_t Size>
-		IArchiver& operator&(T(&array)[Size]) {
-			for (int32_t i = 0; i < Size; ++i) {
-				if (!_stream.fail())
-					*this & array[i];
-				else
-					break;
-			}
-
-			return *this;
-		}
-
-		template <typename T, class Alloc, template <typename, class> class Container>
-		IArchiver& operator&(Container<T, Alloc>& container) {
-			uint32_t size = 0;
-			*this & size;
-
-			if (_stream.fail()) 
-				return *this;
-
-			for (uint32_t i = 0; i < size; ++i) {
-				if (!_stream.fail()) {
-					T t;
-					*this & t;
-					container.push_back(t);
-				}
-				else
-					break;
-			}
-
-			return *this;
+			return IArchiverHelper<IArchiver, T>::invoke(*this, t);
 		}
 
 		template <int32_t Size>

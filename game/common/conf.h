@@ -20,4 +20,20 @@ protected:
 	std::string _conf;
 };
 
+class Envir {
+public:
+	Envir() {
+#ifndef WIN32
+		Argument::Instance().RegArgument("envir", 0, _envir, "./envir/");
+#else
+		Argument::Instance().RegArgument("envir", 0, _envir, ".\\envir\\");
+#endif
+	}
+
+	virtual ~Envir() {}
+
+protected:
+	std::string _envir;
+};
+
 #endif //__CONF_H__

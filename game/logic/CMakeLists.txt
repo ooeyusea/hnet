@@ -50,6 +50,7 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/../common/object"
 	"${PROJECT_SOURCE_DIR}/object_register"
 	"${PROJECT_SOURCE_DIR}/"
+	"${PROJECT_SOURCE_DIR}/kitchen_ware"
 )
 
 LINK_DIRECTORIES(
@@ -121,6 +122,11 @@ SET(PLAYER
 	"${PROJECT_SOURCE_DIR}/player/PlayerMgr.cpp"
 )
 
+SET(KITCHENWARE
+	"${PROJECT_SOURCE_DIR}/kitchen_ware/kitchen_ware.h"
+	"${PROJECT_SOURCE_DIR}/kitchen_ware/kitchen_ware.cpp"
+)
+
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/main.cpp"
 	"${PROJECT_SOURCE_DIR}/Logic.cpp"
@@ -143,6 +149,7 @@ SOURCE_GROUP(method FILES ${METHOD})
 SOURCE_GROUP(object FILES ${OBJECT})
 SOURCE_GROUP(object_reister FILES ${OBJECT_REGISTER})
 SOURCE_GROUP(event FILES ${EVENT})
+SOURCE_GROUP(kitchen_ware FILES ${KITCHENWARE})
 
 ADD_EXECUTABLE(logic
 	${SRC}
@@ -157,6 +164,7 @@ ADD_EXECUTABLE(logic
 	${OBJECT}
 	${OBJECT_REGISTER}
 	${EVENT}
+	${KITCHENWARE}
 )
 
 IF(WIN32)

@@ -28,6 +28,46 @@ namespace olib {
 		virtual bool IsExist(const char * name) const = 0;
 	};
 
+	class ArrayIterator {
+	public:
+		class iterator {
+		public:
+			iterator(const IXmlObject& object) : _object(object), _pos(0) {}
+			iterator(const IXmlObject& object, int32_t end) : _object(object), _pos(end) {}
+
+			inline iterator& operator++() {
+				++_pos;
+				return *this;
+			}
+
+			inline const IXmlObject& operator*() const {
+				return _object[_pos];
+			}
+
+			inline bool operator==(const iterator& rhs) const {
+				return _pos == rhs._pos;
+			}
+
+			inline bool operator!=(const iterator& rhs) const {
+				return _pos != rhs._pos;
+			}
+
+		private:
+			const IXmlObject& _object;
+			int32_t _pos;
+
+		};
+
+		ArrayIterator(const IXmlObject& object) : _object(object), _last(object, object.Count()) {}
+
+		iterator begin() { return iterator(_object); }
+		iterator& end() { return _last; }
+
+	private:
+		const IXmlObject& _object;
+		iterator _last;
+	};
+
     class XmlReader {
     public:
 		XmlReader() : _root(nullptr) {}
