@@ -78,6 +78,10 @@ namespace hyper_net {
 			}).detach();
 		}
 
+		std::thread([this]() {
+			CheckRecvTimeout();
+		}).detach();
+
 		_terminate = false;
 	}
 
@@ -368,7 +372,7 @@ namespace hyper_net {
 		}
 	}
 
-	int32_t NetEngine::Recv(int32_t fd, char * buf, int32_t size) {
+	int32_t NetEngine::Recv(int32_t fd, char * buf, int32_t size, int64_t timeout) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
@@ -385,13 +389,26 @@ namespace hyper_net {
 					}
 					else
 						sock.recvSize = 0;
+
 					sock.readingCo = nullptr;
+					sock.isRecvTimeout = false;
+					sock.recvTimeout = 0;
 					return len;
+				}
+				else if (sock.isRecvTimeout) {
+					sock.readingCo = nullptr;
+					sock.isRecvTimeout = false;
+					sock.recvTimeout = 0;
+					return -2;
 				}
 				else {
 					co->SetStatus(CoroutineState::CS_BLOCK);
 
 					sock.readingCo = co;
+					if (timeout > 0) {
+						sock.recvTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + timeout;
+					}
+
 					if (!sock.recving && !DoRecv(sock, size)) {
 						co->SetStatus(CoroutineState::CS_RUNNABLE);
 						return -1;
@@ -472,6 +489,33 @@ namespace hyper_net {
 			else {
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
+		}
+	}
+
+	void NetEngine::CheckRecvTimeout() {
+		while (!_terminate) {
+			int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+			for (int32_t i = 0; i < MAX_SOCKET; ++i) {
+				Socket& sock = _sockets[i];
+				if (sock.fd != 0 && !sock.acceptor && sock.readingCo && !sock.closing && !sock.closed && sock.recvTimeout > 0 && now > sock.recvTimeout) {
+					Coroutine * co = nullptr;
+					{
+						std::unique_lock<spin_mutex> guard(sock.lock);
+						if (sock.fd != 0 && !sock.acceptor && sock.readingCo && !sock.closing && !sock.closed && sock.recvTimeout > 0 && now > sock.recvTimeout) {
+							co = sock.readingCo;
+
+							sock.recvTimeout = 0;
+							sock.isRecvTimeout = true;
+						}
+					}
+
+					if (co)
+						Scheduler::Instance().AddCoroutine(co);
+				}
+			}
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 	}
 
@@ -608,7 +652,8 @@ namespace hyper_net {
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == evt->socket) {
 				sock.recving = false;
-				co = sock.readingCo;
+				if (!sock.isRecvTimeout)
+					co = sock.readingCo;
 
 				if (evt->code == ERROR_SUCCESS && evt->bytes > 0)
 					sock.recvSize += evt->bytes;
@@ -631,8 +676,8 @@ namespace hyper_net {
 			}
 		}
 		
-
-		Scheduler::Instance().AddCoroutine(co);
+		if (co)
+			Scheduler::Instance().AddCoroutine(co);
 	}
 
 	bool NetEngine::DoSend(Socket & sock) {
@@ -764,6 +809,8 @@ namespace hyper_net {
 					sock.recvSize = 0;
 					sock.recvMaxSize = NET_INIT_FRAME;
 					sock.readingCo = nullptr;
+					sock.recvTimeout = 0;
+					sock.isRecvTimeout = false;
 
 					sock.sending = false;
 					sock.sendBuf = (char *)malloc(NET_INIT_FRAME);

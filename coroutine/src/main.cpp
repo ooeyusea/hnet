@@ -44,8 +44,8 @@ namespace hyper_net {
 		return NetEngine::Instance().Accept(fd, remoteIp, remoteIpSize, remotePort);
 	}
 
-	int32_t NetAdapter::Recv(int32_t fd, char * buf, int32_t size) {
-		return NetEngine::Instance().Recv(fd, buf, size);
+	int32_t NetAdapter::Recv(int32_t fd, char * buf, int32_t size, int64_t timeout) {
+		return NetEngine::Instance().Recv(fd, buf, size, timeout);
 	}
 
 	void NetAdapter::Send(int32_t fd, const char * buf, int32_t size) {

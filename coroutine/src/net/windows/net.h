@@ -58,6 +58,8 @@ namespace hyper_net {
 			int32_t recvSize;
 			int32_t recvMaxSize;
 			Coroutine * readingCo = nullptr;
+			int64_t recvTimeout = 0;
+			bool isRecvTimeout = false;
 
 			bool sending;
 			char * sendBuf = nullptr;
@@ -88,13 +90,14 @@ namespace hyper_net {
 		int32_t Accept(int32_t fd, char * remoteIp, int32_t remoteIpSize, int32_t * remotePort);
 
 		void Send(int32_t fd, const char * buf, int32_t size);
-		int32_t Recv(int32_t fd, char * buf, int32_t size);
+		int32_t Recv(int32_t fd, char * buf, int32_t size, int64_t timeout);
 
 		void Shutdown(int32_t fd);
 		void Close(int32_t fd);
 		bool Test(int32_t fd);
 
 		void ThreadProc();
+		void CheckRecvTimeout();
 
 		bool DoSend(Socket & sock);
 		bool DoRecv(Socket & sock, int32_t size);
