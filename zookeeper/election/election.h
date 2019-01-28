@@ -21,7 +21,7 @@ struct Vote {
 	int8_t state;
 	int32_t electionEpoch;
 	int32_t voteId;
-	int32_t voteZxId;
+	int64_t voteZxId;
 
 	bool operator<(const Vote& rhs) const;
 };
@@ -75,12 +75,14 @@ public:
 	~Election() {}
 
 	bool Start(int32_t clusterCount, const std::string& ip, int32_t electionPort, const std::vector<Server>& cluster);
-	Vote LookForLeader(int32_t id, int32_t zxId, int32_t count);
+	Vote LookForLeader(int32_t id, int64_t zxId, int32_t count);
 	void Echo();
 
 	bool IsVoteOk(const std::unordered_map<int32_t, Vote>& votes, int32_t leader, int32_t electionEpoch, int32_t count);
 	bool CheckLeader(const std::unordered_map<int32_t, Vote>& votes, int32_t leader, bool IsEpochEqual);
 	void BrocastVote(const Vote & vote);
+
+	inline int32_t GetLogicCount() const { return _logicCount; }
 
 private:
 	hn_channel<Vote, -1> _recvCh;

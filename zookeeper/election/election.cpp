@@ -18,7 +18,7 @@ bool Vote::operator<(const Vote& rhs) const {
 
 void VoteSender::Start(std::string ip, int32_t port) {
 	while (!_terminate) {
-		printf("zookeeper: connect %s:%d\n", ip.c_str(), port);
+		hn_debug("zookeeper: connect {}:{}\n", ip.c_str(), port);
 		_fd = hn_connect(ip.c_str(), port);
 		if (_fd < 0) {
 			//log
@@ -152,7 +152,7 @@ void VoteReciver::DealNetPacket(int32_t fd, hn_channel<Vote, -1> ch) {
 				if (header.id == VoteHeader::PONG)
 					_activeTick = zookeeper::GetTickCount();
 				else if (header.id == VoteHeader::VOTE) {
-					//printf("zookeeper:recv vote\n");
+					//hn_debug("zookeeper:recv vote\n");
 					Vote& vote = *(Vote*)(buff + pos + sizeof(VoteHeader));
 					try {
 						ch << vote;
@@ -180,7 +180,7 @@ void VoteReciver::DealNetPacket(int32_t fd, hn_channel<Vote, -1> ch) {
 bool Election::Start(int32_t clusterCount, const std::string& ip, int32_t electionPort, const std::vector<Server>& cluster) {
 	int32_t fd = hn_listen(ip.c_str(), electionPort);
 	if (fd < 0) {
-		printf("election start failed\n");
+		hn_error("election start failed\n");
 		return false;
 	}
 	
@@ -198,7 +198,7 @@ bool Election::Start(int32_t clusterCount, const std::string& ip, int32_t electi
 			};
 		}
 
-		printf("listen election port failed\n");
+		hn_info("listen election port failed\n");
 	};
 
 	for (auto& server : cluster) {
@@ -212,8 +212,8 @@ bool Election::Start(int32_t clusterCount, const std::string& ip, int32_t electi
 	return true;
 }
 
-Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
-	printf("start looking for leader\n");
+Vote Election::LookForLeader(int32_t id, int64_t zxId, int32_t count) {
+	hn_info("start looking for leader\n");
 	_id = id;
 	++_logicCount;
 	if (_echoing) {
@@ -226,7 +226,7 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 	_state = LOOKING;
 
 	std::unordered_map<int32_t, Vote> votes;
-	Vote proposal{id, zxId, _logicCount, id, zxId};
+	Vote proposal{id, _state, _logicCount, id, zxId};
 
 	std::unordered_map<int32_t, Vote> otherVote;
 
@@ -266,7 +266,7 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 					proposal.voteZxId = vote.voteZxId;
 					votes[id] = proposal;
 
-					printf("zookeeper: 1 other vote is bigger %d %d %d\n", vote.voteId, vote.electionEpoch, vote.voteZxId);
+					hn_debug("zookeeper: 1 other vote is bigger {} {} {}\n", vote.voteId, vote.electionEpoch, vote.voteZxId);
 				}
 
 				BrocastVote(proposal);
@@ -284,7 +284,7 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 
 					BrocastVote(proposal);
 
-					printf("zookeeper: 2 other vote is bigger %d %d %d\n", vote.voteId, vote.electionEpoch, vote.voteZxId);
+					hn_debug("zookeeper: 2 other vote is bigger {} {} {}\n", vote.voteId, vote.electionEpoch, vote.voteZxId);
 				}
 			}
 
@@ -309,7 +309,7 @@ Vote Election::LookForLeader(int32_t id, int32_t zxId, int32_t count) {
 				if (queue.empty()) {
 					_state = (proposal.voteId == _id) ? LEADING : FOLLOWING;
 					_leader = proposal;
-					printf("zookeeper: leader is %d %d %d\n", _leader.voteId, _leader.electionEpoch, _leader.voteZxId);
+					hn_debug("zookeeper: leader is {} {} {}\n", _leader.voteId, _leader.electionEpoch, _leader.voteZxId);
 					Echo();
 					return proposal;
 				}
@@ -390,7 +390,7 @@ bool Election::CheckLeader(const std::unordered_map<int32_t, Vote>& votes, int32
 }
 
 void Election::BrocastVote(const Vote & vote) {
-	//printf("zookeeper:brocast vote\n");
+	//hn_debug("zookeeper:brocast vote\n");
 	char msg[sizeof(VoteHeader) + sizeof(Vote)];
 	VoteHeader& header = *(VoteHeader*)msg;
 	Vote& send = *(Vote*)(msg + sizeof(VoteHeader));

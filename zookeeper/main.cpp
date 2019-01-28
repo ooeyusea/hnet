@@ -4,6 +4,9 @@
 #include <vector>
 #include "election.h"
 #include "XmlReader.h"
+#include "lead.h"
+#include "follow.h"
+#include "dataset.h"
 
 class ZooKeeper {
 public:
@@ -20,15 +23,18 @@ public:
 private:
 	int8_t _state = Election::LOOKING;
 	int32_t _id = 0;
-	int32_t _zxId = 0;
 	int32_t _clientPort = 0;
 	std::string _ip;
 	int32_t _electionPort = 0;
 	int32_t _votePort = 0;
 
 	std::vector<Server> _servers;
+	Server * _leader = nullptr;
 
 	Election _election;
+
+	int32_t _peerEpoch = 1;
+	DataSet _dataset;
 };
 
 bool ZooKeeper::Start() {
@@ -76,6 +82,14 @@ bool ZooKeeper::Start() {
 		return false;
 	}
 
+#ifdef WIN32
+	if (!_dataset.Load("var/lib/zookeeper")) {
+#else
+	if (!_dataset.Load("/var/lib/zookeeper")) {
+#endif
+		return false;
+	}
+
 	if (!_election.Start(_servers.size() + 1, _ip, _electionPort, _servers)) {
 		printf("zookeeper: election start failed\n");
 		return false;
@@ -95,19 +109,31 @@ void ZooKeeper::Run() {
 }
 
 void ZooKeeper::Elect() {
-	Vote vote = _election.LookForLeader(_id, _zxId, _servers.size() + 1);
+	Vote vote = _election.LookForLeader(_id, _dataset.GetZxId(), _servers.size() + 1);
 
 	_state = (vote.voteId == _id) ? Election::LEADING : Election::FOLLOWING;
+	if (_state == Election::FOLLOWING) {
+		for (auto& server : _servers) {
+			if (server.id == vote.idx) {
+				_leader = &server;
+				break;
+			}
+		}
+	}
 }
 
 void ZooKeeper::Leading() {
-	printf("I'm leader\n");
-	hn_sleep(5000);
+	hn_info("I'm leader\n");
+
+	Lead lead;
+	_peerEpoch = lead.Leading(_id, _peerEpoch, _dataset, _votePort, _servers.size() + 1);
 }
 
 void ZooKeeper::Following() {
-	printf("I'm follow\n");
-	hn_sleep(5000);
+	hn_info("I'm follower\n");
+
+	Follow follow;
+	_peerEpoch = follow.Following(_id, _peerEpoch, _dataset, _leader->ip, _leader->votePort);
 }
 
 void start(int32_t argc, char ** argv) {

@@ -34,6 +34,8 @@ INCLUDE_DIRECTORIES(
 	"${PROJECT_SOURCE_DIR}/xml"
 	"${PROJECT_SOURCE_DIR}/xml/tinyxml"
 	"${PROJECT_SOURCE_DIR}/election"
+	"${PROJECT_SOURCE_DIR}/paxos"
+	"${PROJECT_SOURCE_DIR}/transaction"
 	"${PROJECT_SOURCE_DIR}/"
 )
 
@@ -60,14 +62,21 @@ SET(ELECTION
 )
 
 SET(PAXOS
+	"${PROJECT_SOURCE_DIR}/paxos/define.h"
 	"${PROJECT_SOURCE_DIR}/paxos/lead.h"
 	"${PROJECT_SOURCE_DIR}/paxos/lead.cpp"
 	"${PROJECT_SOURCE_DIR}/paxos/follow.h"
 	"${PROJECT_SOURCE_DIR}/paxos/follow.cpp"
 )
 
+SET(TRANSACTION
+	"${PROJECT_SOURCE_DIR}/transaction/dataset.h"
+	"${PROJECT_SOURCE_DIR}/transaction/dataset.cpp" 
+)
+
 SET(SRC
 	"${PROJECT_SOURCE_DIR}/util.h"
+	"${PROJECT_SOURCE_DIR}/socket_helper.h"
 	"${PROJECT_SOURCE_DIR}/main.cpp"
 )
 
@@ -75,6 +84,7 @@ SOURCE_GROUP(xml FILES ${XML})
 SOURCE_GROUP(xml\\tinyxml FILES ${TINYXML})
 SOURCE_GROUP(election FILES ${ELECTION})
 SOURCE_GROUP(paxos FILES ${PAXOS})
+SOURCE_GROUP(transaction FILES ${TRANSACTION})
 SOURCE_GROUP(\\ FILES ${SRC})
 
 ADD_EXECUTABLE(zookeeper
@@ -83,6 +93,7 @@ ADD_EXECUTABLE(zookeeper
 	${TINYXML}
 	${ELECTION}
 	${PAXOS}
+	${TRANSACTION}
 )
 
 IF(WIN32)

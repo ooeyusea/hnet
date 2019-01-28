@@ -53,7 +53,7 @@ namespace hyper_net {
 
 			const std::function<void(void * dst, const void * p)> push = CoChannelFunc::Push;
 			const std::function<void(void * src, void * p)> pop = CoChannelFunc::Pop;
-			const std::function<void(void * src, void * p)> recover = CoChannelFunc::Recover;
+			const std::function<void(void * src)> recover = CoChannelFunc::Recover;
 		};
 
 		typedef typename std::conditional<std::is_pod<T>::value, CoChannelNullFn, CoChannelFunc>::type FuncType;
