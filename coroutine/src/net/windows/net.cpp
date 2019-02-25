@@ -55,6 +55,12 @@ LPFN_ACCEPTEX g_accept = nullptr;
 LPFN_CONNECTEX g_connect = nullptr;
 
 namespace hyper_net {
+	inline void CloseSocket(SOCKET sock) {
+		closesocket(sock);
+
+		printf("closesocket %lld\n", sock);
+	}
+
 	NetEngine::NetEngine() {
 		_nextFd = 1;
 
@@ -101,12 +107,12 @@ namespace hyper_net {
 			addr.sin_family = AF_INET;
 			addr.sin_port = htons(port);
 			if ((addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 
 			if (SOCKET_ERROR == bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in))) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 		}
@@ -120,29 +126,29 @@ namespace hyper_net {
 			addr.sin6_port = htons(port);
 			
 			if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 
 			if (SOCKET_ERROR == bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in6))) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 		}
 
 		if (listen(sock, 128) == SOCKET_ERROR) {
-			closesocket(sock);
+			CloseSocket(sock);
 			return -1;
 		}
 
 		if (_completionPort != CreateIoCompletionPort((HANDLE)sock, _completionPort, sock, 0)) {
-			closesocket(sock);
+			CloseSocket(sock);
 			return -1;
 		}
 
 		int32_t fd = Apply(sock, true, proto == HN_IPV6);
 		if (fd < 0) {
-			closesocket(sock);
+			CloseSocket(sock);
 			return -1;
 		}
 
@@ -180,7 +186,7 @@ namespace hyper_net {
 
 			DWORD value = 0;
 			if (SOCKET_ERROR == ioctlsocket(sock, FIONBIO, &value)) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 
@@ -188,7 +194,7 @@ namespace hyper_net {
 			setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
 
 			if (_completionPort != CreateIoCompletionPort((HANDLE)sock, _completionPort, sock, 0)) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 
@@ -221,7 +227,7 @@ namespace hyper_net {
 
 			DWORD value = 0;
 			if (SOCKET_ERROR == ioctlsocket(sock, FIONBIO, &value)) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 
@@ -229,7 +235,7 @@ namespace hyper_net {
 			setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
 
 			if (_completionPort != CreateIoCompletionPort((HANDLE)sock, _completionPort, sock, 0)) {
-				closesocket(sock);
+				CloseSocket(sock);
 				return -1;
 			}
 
@@ -265,7 +271,7 @@ namespace hyper_net {
 
 		int32_t fd = Apply(sock);
 		if (fd < 0) {
-			closesocket(sock);
+			CloseSocket(sock);
 			return -1;
 		}
 
@@ -283,7 +289,7 @@ namespace hyper_net {
 				if (!sock.accepts.empty()) {
 					bool ipv6 = sock.ipv6;
 					int32_t coming = sock.accepts.front();
-					sock.accepts.pop_back();
+					sock.accepts.pop_front();
 					guard.unlock();
 
 					if (!ipv6) {
@@ -311,7 +317,7 @@ namespace hyper_net {
 
 					int32_t comingFd = Apply(coming);
 					if (comingFd < 0) {
-						closesocket(coming);
+						CloseSocket(coming);
 						return -1;
 					}
 
@@ -352,7 +358,7 @@ namespace hyper_net {
 
 			if (!sock.sending) {
 				if (!DoSend(sock)) {
-					closesocket(sock.sock);
+					CloseSocket(sock.sock);
 					sock.closed = true;
 
 					if (!sock.recving) {
@@ -436,7 +442,7 @@ namespace hyper_net {
 		if (sock.fd == fd) {
 			if (!sock.acceptor) {
 				if (!sock.closed) {
-					closesocket(sock.sock);
+					CloseSocket(sock.sock);
 					sock.closed = true;
 				}
 			}
@@ -465,7 +471,7 @@ namespace hyper_net {
 				if (!sock.closing && !sock.closed) {
 					sock.closing = true;
 					if (!sock.sending) {
-						closesocket(sock.sock);
+						CloseSocket(sock.sock);
 						sock.closed = true;
 					}
 				}
@@ -520,63 +526,73 @@ namespace hyper_net {
 	}
 
 	void NetEngine::DealAccept(IocpAcceptor * evt) {
-		BOOL res = setsockopt(evt->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char *)&evt->accept.sock, sizeof(evt->accept.sock));
+		if (evt->accept.code == ERROR_SUCCESS) {
+			BOOL res = setsockopt(evt->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char *)&evt->accept.sock, sizeof(evt->accept.sock));
 
-		sockaddr_in remote;
-		int32_t size = sizeof(sockaddr_in);
-		if (res != 0 || 0 != getpeername(evt->sock, (sockaddr*)&remote, &size)) {
-			OASSERT(false, "complete accept error %d", GetLastError());
-			closesocket(evt->sock);
-
-			evt->sock = INVALID_SOCKET;
-		}
-		else {
-			DWORD value = 0;
-			if (SOCKET_ERROR == ioctlsocket(evt->sock, FIONBIO, &value)) {
-				closesocket(evt->sock);
+			sockaddr_in remote;
+			int32_t size = sizeof(sockaddr_in);
+			if (res != 0 || 0 != getpeername(evt->sock, (sockaddr*)&remote, &size)) {
+				//OASSERT(false, "complete accept error %d", GetLastError());
+				CloseSocket(evt->sock);
 
 				evt->sock = INVALID_SOCKET;
 			}
 			else {
-				HANDLE ret = CreateIoCompletionPort((HANDLE)evt->sock, _completionPort, evt->sock, 0);
-				if (_completionPort != ret) {
-					closesocket(evt->sock);
+				DWORD value = 0;
+				if (SOCKET_ERROR == ioctlsocket(evt->sock, FIONBIO, &value)) {
+					CloseSocket(evt->sock);
 
 					evt->sock = INVALID_SOCKET;
 				}
 				else {
-					const int8_t nodelay = 1;
-					setsockopt(evt->sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&nodelay, sizeof(nodelay));
+					HANDLE ret = CreateIoCompletionPort((HANDLE)evt->sock, _completionPort, evt->sock, 0);
+					if (_completionPort != ret) {
+						CloseSocket(evt->sock);
+
+						evt->sock = INVALID_SOCKET;
+					}
+					else {
+						const int8_t nodelay = 1;
+						setsockopt(evt->sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&nodelay, sizeof(nodelay));
+					}
 				}
 			}
-		}
 
-		int32_t fd = evt->accept.socket;
-		socket_t sock = evt->sock;
-		if (sock != INVALID_SOCKET) {
-			Socket& acceptSock = _sockets[fd & MAX_SOCKET];
-			std::unique_lock<spin_mutex> guard(acceptSock.lock);
-			if (acceptSock.fd == fd) {
-				acceptSock.accepts.push_back(sock);
-				
-				if (!acceptSock.waitAcceptCo.empty()) {
-					Coroutine * co = acceptSock.waitAcceptCo.front();
-					acceptSock.waitAcceptCo.pop_front();
+			int32_t fd = evt->accept.socket;
+			socket_t sock = evt->sock;
+			if (sock != INVALID_SOCKET) {
+				Socket& acceptSock = _sockets[fd & MAX_SOCKET];
+				std::unique_lock<spin_mutex> guard(acceptSock.lock);
+				if (acceptSock.fd == fd) {
+					acceptSock.accepts.push_back(sock);
+
+					if (!acceptSock.waitAcceptCo.empty()) {
+						Coroutine * co = acceptSock.waitAcceptCo.front();
+						acceptSock.waitAcceptCo.pop_front();
+						guard.unlock();
+
+						Scheduler::Instance().AddCoroutine(co);
+					}
+				}
+				else {
 					guard.unlock();
 
-					Scheduler::Instance().AddCoroutine(co);
+					delete evt;
+					return;
 				}
 			}
-			else {
-				guard.unlock();
 
-				delete evt;
-				return;
-			}
+			if (!DoAccept(evt))
+				Shutdown(fd);
 		}
+		else {
+			printf("shutdown listener\n");
+			CloseSocket(evt->sock);
+			evt->sock = INVALID_SOCKET;
 
-		if (!DoAccept(evt))
-			Shutdown(fd);
+			Shutdown(evt->accept.socket);
+			delete evt;
+		}
 	}
 
 	void NetEngine::DealConnect(IocpConnector * evt) {
@@ -585,7 +601,7 @@ namespace hyper_net {
 			setsockopt(evt->connect.sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&nodelay, sizeof(nodelay));
 		}
 		else {
-			closesocket(evt->connect.sock);
+			CloseSocket(evt->connect.sock);
 
 			socket_t& sock = *(socket_t*)evt->co->GetTemp();
 			sock = INVALID_SOCKET;
@@ -595,6 +611,7 @@ namespace hyper_net {
 	}
 
 	void NetEngine::DealSend(IocpEvent * evt) {
+		//hn_info("send {}:{}", evt->socket, evt->code);
 		Socket& sock = _sockets[evt->socket & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == evt->socket) {
@@ -607,26 +624,31 @@ namespace hyper_net {
 						memmove(sock.sendBuf, sock.sendBuf + evt->bytes, sock.sendSize);
 					}
 
-					if (sock.sendSize > 0 || sock.sendChainSize > 0)
+					//printf("send %lld[%d]:%d->%d %d\n", evt->sock, sock.closing, sock.sendSize, sock.sendChainSize, sock.sendSize > 0 || sock.sendChainSize > 0);
+					if (sock.sendSize > 0 || sock.sendChainSize > 0) {
+						//hn_info("send1 {}[{}]:{}->{} {}", evt->socket, sock.closing, sock.sendSize, sock.sendChainSize, sock.sendSize > 0 || sock.sendChainSize > 0);
 						if (!DoSend(sock)) {
-							closesocket(sock.sock);
-							sock.closed = true;
-						}
-					else {
-						if (sock.closing) {
-							closesocket(sock.sock);
+							CloseSocket(sock.sock);
 							sock.closed = true;
 						}
 					}
+					else {
+						//hn_info("send2 {}[{}]:{}->{}", evt->socket, sock.closing, sock.sendSize, sock.sendChainSize);
+						if (sock.closing) {
+							CloseSocket(sock.sock);
+							sock.closed = true;
+						}
+					}
+					//printf("sended\n");
 				}
 				else {
 					if (evt->code != ERROR_IO_PENDING) {
-						closesocket(sock.sock);
+						CloseSocket(sock.sock);
 						sock.closed = true;
 					}
 					else if (sock.sendSize > 0 || sock.sendChainSize > 0) {
 						if (!DoSend(sock)) {
-							closesocket(sock.sock);
+							CloseSocket(sock.sock);
 							sock.closed = true;
 						}
 					}
@@ -646,6 +668,7 @@ namespace hyper_net {
 	}
 
 	void NetEngine::DealRecv(IocpEvent * evt) {
+		//hn_info("recv {}:{}", evt->socket, evt->code);
 		Coroutine * co = nullptr;
 		{
 			Socket& sock = _sockets[evt->socket & MAX_SOCKET];
@@ -659,7 +682,7 @@ namespace hyper_net {
 					sock.recvSize += evt->bytes;
 				else {
 					if (!sock.closed) {
-						closesocket(sock.sock);
+						CloseSocket(sock.sock);
 						sock.closed = true;
 					}
 
@@ -744,6 +767,8 @@ namespace hyper_net {
 			return false;
 		}
 
+		//hn_info("DoAccept {} {}", acceptor->accept.sock, acceptor->sock);
+
 		DWORD bytes = 0;
 		int32_t res = g_accept(acceptor->accept.sock,
 			acceptor->sock,
@@ -758,7 +783,7 @@ namespace hyper_net {
 		int32_t errCode = WSAGetLastError();
 		if (!res && errCode != WSA_IO_PENDING) {
 			OASSERT(false, "do accept failed %d", errCode);
-			closesocket(acceptor->sock);
+			CloseSocket(acceptor->sock);
 			delete acceptor;
 			return false;
 		}
@@ -833,6 +858,8 @@ namespace hyper_net {
 					sock.evtSend.socket = fd;
 					sock.evtSend.sock = s;
 					sock.evtSend.bytes = 0;
+
+					//hn_info("apply fd {} {}", fd, sock.sock);
 					return fd;
 				}
 			}
@@ -841,7 +868,7 @@ namespace hyper_net {
 	}
 
 	void NetEngine::ShutdownListener(std::unique_lock<spin_mutex>& guard, Socket& sock) {
-		closesocket(sock.sock);
+		CloseSocket(sock.sock);
 		sock.fd = 0;
 		sock.sock = INVALID_SOCKET;
 
@@ -851,7 +878,7 @@ namespace hyper_net {
 		guard.unlock();
 
 		for (auto ac : accepts)
-			closesocket(ac);
+			CloseSocket(ac);
 
 		for (auto * co : tmp)
 			Scheduler::Instance().AddCoroutine(co);
