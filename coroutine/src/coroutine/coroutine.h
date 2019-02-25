@@ -2,8 +2,7 @@
 #define __COROUTINE_H__
 #include "util.h"
 #ifdef USE_FCONTEXT
-#include <boost/context/all.hpp>
-using namespace boost::context;
+#include "fcontext.hpp"
 #endif
 #include <atomic>
 

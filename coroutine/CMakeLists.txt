@@ -4,7 +4,10 @@
 
 cmake_minimum_required(VERSION 2.8)
 PROJECT(coroutine)
+
 IF(UNIX)
+	ENABLE_LANGUAGE(ASM)
+	OPTION(USE_FCONTEXT "use boost context" On)
     SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
     SET(CMAKE_CXX_FLAGS "-Wall -std=c++17 -lpthread -lcurl -rdynamic -ldl -Dlinux -Wl,-rpath,./ -DUSE_FCONTEXT")
     SET(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -O0 -pg")
@@ -14,6 +17,7 @@ IF(UNIX)
 ENDIF(UNIX)
 
 IF(WIN32)
+	ENABLE_LANGUAGE(ASM_MASM)
 	OPTION(USE_FCONTEXT "use boost context" Off)
 	set(CMAKE_CXX_STANDARD 17)
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -85,6 +89,35 @@ SET(COROUTINE
 	"${PROJECT_SOURCE_DIR}/src/coroutine/processer.cpp"
 )
 
+IF(USE_FCONTEXT)
+INCLUDE_DIRECTORIES(
+	"${PROJECT_SOURCE_DIR}/src/coroutine/fcontext"
+)
+
+SET(FCONTEXT
+	"${PROJECT_SOURCE_DIR}/src/coroutine/fcontext/fcontext.hpp"
+)
+
+IF(WIN32)
+SET(FCONTEXT_ASM
+	"${PROJECT_SOURCE_DIR}/src/coroutine/fcontext/asm/make_x86_64_ms_pe_masm.asm"
+	"${PROJECT_SOURCE_DIR}/src/coroutine/fcontext/asm/jump_x86_64_ms_pe_masm.asm"
+)
+ENDIF(WIN32)
+
+IF(UNIX)
+SET(FCONTEXT_ASM
+	"${PROJECT_SOURCE_DIR}/src/coroutine/fcontext/asm/make_x86_64_sysv_elf_gas.S"
+	"${PROJECT_SOURCE_DIR}/src/coroutine/fcontext/asm/jump_x86_64_sysv_elf_gas.S"
+)
+ENDIF(UNIX)
+ELSE()
+SET(FCONTEXT
+)
+SET(FCONTEXT_ASM
+)
+ENDIF(USE_FCONTEXT)
+
 SET(COMUTEX
     "${PROJECT_SOURCE_DIR}/src/comutex/comutex.h"
 	"${PROJECT_SOURCE_DIR}/src/comutex/comutex.cpp"
@@ -144,6 +177,10 @@ SET(OPTIONS
 
 SOURCE_GROUP(public FILES ${PUBLIC})
 SOURCE_GROUP(coroutine FILES ${COROUTINE})
+IF(USE_FCONTEXT)
+SOURCE_GROUP(coroutine\\fcontext FILES ${FCONTEXT})
+SOURCE_GROUP(coroutine\\fcontext\\asm FILES ${FCONTEXT_ASM})
+ENDIF(USE_FCONTEXT)
 SOURCE_GROUP(options FILES ${OPTIONS})
 SOURCE_GROUP(net FILES ${NET})
 SOURCE_GROUP(timer FILES ${TIMER})
@@ -166,6 +203,8 @@ ADD_LIBRARY(hnet STATIC
 	${COCHANNEL}
 	${CORPC}
 	${LOGGER}
+	${FCONTEXT}
+	${FCONTEXT_ASM}
 )
 
 SET(LIBRARY_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/../bin")
