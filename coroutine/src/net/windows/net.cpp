@@ -58,7 +58,7 @@ namespace hyper_net {
 	inline void CloseSocket(SOCKET sock) {
 		closesocket(sock);
 
-		printf("closesocket %lld\n", sock);
+		//printf("closesocket %lld\n", sock);
 	}
 
 	NetEngine::NetEngine() {
@@ -586,7 +586,7 @@ namespace hyper_net {
 				Shutdown(fd);
 		}
 		else {
-			printf("shutdown listener\n");
+			//printf("shutdown listener\n");
 			CloseSocket(evt->sock);
 			evt->sock = INVALID_SOCKET;
 

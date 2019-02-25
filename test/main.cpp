@@ -66,6 +66,11 @@ void test_net() {
 void test_server() {
 	hn_fork []{
 		auto s = hn_listen("0.0.0.0", 9027);
+		hn_fork[s] {
+			getchar();
+			hn_close(s);
+		};
+
 		while (true) {
 			auto c = hn_accept(s);
 			if (c < 0)
@@ -86,10 +91,10 @@ void test_server() {
 					recv = hn_recv(c, recvBuff, 1023);
 				}
 
-				//printf("recv %s\n", data.c_str());
+				//printf("recv %d %s\n", c, data.c_str());
 				hn_send(c, data.c_str(), data.size());
 
-				hn_sleep 5000;
+				//hn_sleep 5000;
 				hn_close(c);
 			};
 		}
@@ -103,14 +108,16 @@ void test_random_data() {
 		for (int32_t i = 0; i < 1024 * 1024; ++i) {
 			g_data[i] = 'a' + rand() % 26;
 		}
-		g_data[1024 * 1024 - 1] = 0;
+		g_data[1024 * 1024 - 1] = '$';
 	}
-	static char * g_end = "$";
 
-	hn_fork []{
+	static int32_t sizes[] = { 32, 128, 512, 1 * 1024, 4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, 1024 * 1024 };
+	int32_t size = sizes[rand() % 9];
+
+	hn_fork[size]{
 		auto c = hn_connect("127.0.0.1", 9027);
-		hn_send(c, g_data + rand() % 1024 * 1022, rand() % 1024);
-		hn_send(c, g_end, 1);
+		hn_send(c, g_data + (1024 * 1024 - size), size);
+		//hn_send(c, g_end, 1);
 
 		std::string data;
 		char recvBuff[1024] = { 0 };
@@ -122,11 +129,52 @@ void test_random_data() {
 			if (std::find(recvBuff, recvBuff + recv, '$') != recvBuff + recv)
 				break;
 
-			printf("%s %d\n", recvBuff, recv);
+			//printf("%s %d\n", recvBuff, recv);
 			recv = hn_recv(c, recvBuff, 1023);
 		}
 
-		printf("recv %s\n", data.c_str());
+		//printf("recv %d %s\n", size, data.c_str());
+		hn_close(c);
+	};
+}
+
+void test_fix_data(int32_t size) {
+	if (size > 1024 * 1024 - 1) {
+		size = 1024 * 1024 - 1;
+	}
+
+	static char * g_data = nullptr;
+	if (!g_data) {
+		g_data = new char[1024 * 1024];
+		for (int32_t i = 0; i < 1024 * 1024; ++i) {
+			g_data[i] = 'a' + rand() % 26;
+		}
+		g_data[1024 * 1024 - 1] = 0;
+		g_data[size - 1] = '$';
+	}
+	static char * g_end = "$";
+
+	hn_fork [size]{
+		auto c = hn_connect("127.0.0.1", 9027);
+		hn_send(c, g_data, size);
+		//hn_send(c, g_end, 1);
+
+		std::string data;
+		char recvBuff[1024] = { 0 };
+		int32_t recv = hn_recv(c, recvBuff, 1023);
+		while (recv > 0) {
+			recvBuff[recv] = 0;
+			data += recvBuff;
+
+			if (std::find(recvBuff, recvBuff + recv, '$') != recvBuff + recv)
+				break;
+
+			//printf("%s %d\n", recvBuff, recv);
+			recv = hn_recv(c, recvBuff, 1023);
+		}
+
+		//printf("recv %d %s\n", size, data.c_str());
+		hn_close(c);
 	};
 }
 
@@ -305,6 +353,75 @@ void test_rpc_client() {
 	}
 }
 
+void test_echo_server() {
+	hn_fork[]{
+		auto s = hn_listen("0.0.0.0", 9027);
+		while (true) {
+			auto c = hn_accept(s);
+			if (c < 0)
+				break;
+
+			hn_fork[c]{
+				std::string data;
+				char recvBuff[1024] = { 0 };
+				int32_t recv = hn_recv(c, recvBuff, 1023);
+				while (recv > 0) {
+					recvBuff[recv] = 0;
+					data += recvBuff;
+
+					if (std::find(recvBuff, recvBuff + recv, '$') != recvBuff + recv)
+						break;
+
+					//printf("%s %d\n", recvBuff, recv);
+					recv = hn_recv(c, recvBuff, 1023);
+				}
+
+				//printf("recv %s\n", data.c_str());
+				hn_send(c, data.c_str(), data.size());
+
+				hn_sleep 5000;
+				hn_close(c);
+			};
+		}
+	};
+}
+
+//32, 128, 512, 1 * 1024, 4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, 1 * 1024 * 1024
+
+void test_echo_client() {
+	static char * g_data = nullptr;
+	if (!g_data) {
+		g_data = new char[1024 * 1024];
+		for (int32_t i = 0; i < 1024 * 1024; ++i) {
+			g_data[i] = 'a' + rand() % 26;
+		}
+		g_data[1024 * 1024 - 1] = 0;
+	}
+	static char * g_end = "$";
+
+	hn_fork[]{
+		auto c = hn_connect("127.0.0.1", 9027);
+		hn_send(c, g_data + rand() % 1024 * 1022, rand() % 1024);
+		hn_send(c, g_end, 1);
+
+		std::string data;
+		char recvBuff[1024] = { 0 };
+		int32_t recv = hn_recv(c, recvBuff, 1023);
+		while (recv > 0) {
+			recvBuff[recv] = 0;
+			data += recvBuff;
+
+			if (std::find(recvBuff, recvBuff + recv, '$') != recvBuff + recv)
+				break;
+
+			//printf("%s %d\n", recvBuff, recv);
+			recv = hn_recv(c, recvBuff, 1023);
+		}
+
+		//printf("recv %s\n", data.c_str());
+	};
+}
+
 void start(int32_t argc, char ** argv) {
 	hn_info("case:{}", argv[1]);
 	hn_debug("case:{}", argv[1]);
@@ -318,6 +435,12 @@ void start(int32_t argc, char ** argv) {
 		int32_t count = atoi(argv[2]);
 		for (int32_t i = 0; i < count; ++i)
 			test_random_data();
+	}
+	else if (strcmp(argv[1], "fix") == 0) {
+		int32_t count = atoi(argv[2]);
+		int32_t size = atoi(argv[3]);
+		for (int32_t i = 0; i < count; ++i)
+			test_fix_data(size);
 	}
 	else if (strcmp(argv[1], "channel") == 0)
 		test_channel();
