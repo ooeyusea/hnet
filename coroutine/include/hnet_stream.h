@@ -103,9 +103,9 @@ namespace hyper_net {
 	struct OArchiverHelper<AR, T[Size]> {
 		static AR& invoke(AR& ar, T(&arr)[Size]) {
 			for (int32_t i = 0; i < Size; ++i) {
-				*this & arr[i];
+				ar & arr[i];
 			}
-			return *this;
+			return ar;
 		}
 	};
 
@@ -366,7 +366,7 @@ namespace hyper_net {
 				if (!ar.Fail()) {
 					K k;
 					V v;
-					ar & t;
+					ar & k;
 					ar & v;
 
 					container.insert(std::make_pair(k, v));

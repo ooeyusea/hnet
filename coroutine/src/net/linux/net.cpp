@@ -6,6 +6,7 @@
 
 #define NET_INIT_FRAME 1024
 #define MAX_NET_THREAD 4
+#define TIMEOUT_BATCH 64
 
 namespace hyper_net {
 	NetEngine::NetEngine() {
@@ -24,6 +25,10 @@ namespace hyper_net {
 				ThreadProc(*worker);
 			}).detach();
 		}
+		
+		std::thread([this]() {
+			CheckRecvTimeout();
+		}).detach();
 
 		_terminate = false;
 	}
@@ -33,20 +38,35 @@ namespace hyper_net {
 	}
 
 	int32_t NetEngine::Listen(const char * ip, const int32_t port, int32_t proto) {
+		if (Options::Instance().IsDebug()) {
+			printf("listen %s:%d %s\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+		}
+		
 		socket_t sock = INVALID_SOCKET;
 		if (proto == HN_IPV4) {
 			if (INVALID_SOCKET == (sock = socket(AF_INET, SOCK_STREAM, 0))) {
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s create socket failed %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 
 			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s set nonblock failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
 			int32_t reuse = 1;
 			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse)) == -1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s set reuse failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
@@ -55,27 +75,46 @@ namespace hyper_net {
 			addr.sin_port = htons(port);
 			if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s address parse error %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 
 			if (bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s bind socket error %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 		}
 		else {
 			if (INVALID_SOCKET == (sock = socket(AF_INET6, SOCK_STREAM, 0))) {
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s create socket failed %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 
 			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s set nonblock failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
 			int32_t reuse = 1;
 			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse)) == -1) {
 				close(sock);
+
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s set reuse failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
@@ -84,59 +123,101 @@ namespace hyper_net {
 			addr.sin6_port = htons(port);
 			if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s address parse error %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 
 			if (bind(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("listen %s:%d %s bind socket error %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 		}
 
 		if (listen(sock, 128) < 0) {
 			close(sock);
+			
+			if (Options::Instance().IsDebug()) {
+				printf("listen %s:%d %s listen socket error %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+			}
 			return -1;
 		}
 
 		int32_t fd = Apply(sock, true, proto == HN_IPV6);
 		if (fd < 0) {
 			close(sock);
+			
+			if (Options::Instance().IsDebug()) {
+				printf("listen %s:%d %s listen apply sock error\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+			}
 			return -1;
 		}
 
+		if (Options::Instance().IsDebug()) {
+			printf("listen %s:%d %s listen apply sock success[%d]\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", fd);
+		}
 		return fd;
 	}
 
 	int32_t NetEngine::Connect(const char * ip, const int32_t port, int32_t proto) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
+		
+		if (Options::Instance().IsDebug()) {
+			printf("connect %s:%d %s\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+		}
 
 		socket_t sock = INVALID_SOCKET;
 		if (proto == HN_IPV4) {
 			sockaddr_in addr;
 			addr.sin_family = AF_INET;
 			addr.sin_port = htons(port);
-			if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1)
+			if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1) {
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s parse ip failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
+			}
 
 			if (INVALID_SOCKET == (sock = socket(AF_INET, SOCK_STREAM, 0))) {
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s create socket failed %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 
 			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s set nonblock failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
 			long nonNegal = 1l;
 			if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s set nodelay failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
 			int32_t res = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
 			if (res < 0 && errno != EINPROGRESS) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s set connect failed %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 		}
@@ -144,27 +225,46 @@ namespace hyper_net {
 			sockaddr_in6 addr;
 			addr.sin6_family = AF_INET6;
 			addr.sin6_port = htons(port);
-			if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1)
+			if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1) {
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s parse ip failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
+			}
 
 			if (INVALID_SOCKET == (sock = socket(AF_INET6, SOCK_STREAM, 0))) {
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s create socket failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 
 			if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFD, 0) | O_NONBLOCK) == -1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s set nonblock failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
 			long nonNegal = 1l;
 			if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s set nodelay failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+				}
 				return -1;
 			}
 
 			int32_t res = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
 			if (res < 0 && errno != EINPROGRESS) {
 				close(sock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s connect failed %d\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", errno);
+				}
 				return -1;
 			}
 		}
@@ -183,9 +283,19 @@ namespace hyper_net {
 
 		hn_yield;
 
-		if (error == 0)
-			return Apply(sock);
+		if (error == 0) {
+			int32_t fd = Apply(sock);
+			if (fd > 0) {
+				if (Options::Instance().IsDebug()) {
+					printf("connect %s:%d %s success[%d]\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", fd);
+				}
+				return fd;
+			}
+		}
 
+		if (Options::Instance().IsDebug()) {
+			printf("connect %s:%d %s finally failed\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6");
+		}
 		close(sock);
 		return -1;
 	}
@@ -199,6 +309,7 @@ namespace hyper_net {
 		if (sock.fd == fd && sock.acceptor) {
 			bool ipv6 = sock.ipv6;
 			socket_t comingSock = INVALID_SOCKET;
+			
 			if (!sock.waiting) {
 				if (sock.ipv6) {
 					struct sockaddr_in6 addr;
@@ -212,100 +323,97 @@ namespace hyper_net {
 
 					comingSock = accept(sock.sock, (struct sockaddr*)&addr, &len);
 				}
+				
 				if (comingSock < 0) {
 					if (errno == EAGAIN) {
 						sock.waiting = true;
 					}
-					else
-						return -1;
-				}
-				else {
-					guard.unlock();
-
-					if (fcntl(comingSock, F_SETFL, fcntl(comingSock, F_GETFD, 0) | O_NONBLOCK) == -1) {
-						close(comingSock);
-						return -1;
-					}
-
-					long nonNegal = 1l;
-					if (setsockopt(comingSock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
-						close(comingSock);
-						return -1;
-					}
-
-					if (!ipv6) {
-						sockaddr_in remote;
-						socklen_t len = sizeof(remote);
-						getpeername(comingSock, (sockaddr*)&remote, &len);
-
-						if (remotePort)
-							*remotePort = ntohs(remote.sin_port);
-
-						if (remoteIp)
-							inet_ntop(AF_INET, &remote.sin_addr, remoteIp, remoteIpSize);
-					}
 					else {
-						sockaddr_in6 remote;
-						socklen_t len = sizeof(remote);
-						getpeername(comingSock, (sockaddr*)&remote, &len);
-
-						if (remotePort)
-							*remotePort = ntohs(remote.sin6_port);
-
-						if (remoteIp)
-							inet_ntop(AF_INET6, &remote.sin6_addr, remoteIp, remoteIpSize);
+						if (Options::Instance().IsDebug()) {
+							printf("accept[%d:%s] failed %d\n", fd, !ipv6 ? "ipv4" : "ipv6", errno);
+						}
+						return -1;
 					}
-
-					return Apply(comingSock);
 				}
 			}
+			
+			if (sock.waiting) {
+				sock.waitAcceptCo.push_back(co);
+				co->SetStatus(CoroutineState::CS_BLOCK);
+				co->SetTemp(&comingSock);
+				guard.unlock();
 
-			sock.waitAcceptCo.push_back(co);
-			co->SetStatus(CoroutineState::CS_BLOCK);
-			co->SetTemp(&comingSock);
-			guard.unlock();
-
-			hn_yield;
-
-			if (comingSock != INVALID_SOCKET) {
-				if (fcntl(comingSock, F_SETFL, fcntl(comingSock, F_GETFD, 0) | O_NONBLOCK) == -1) {
-					close(comingSock);
+				hn_yield;
+				
+				if (comingSock == INVALID_SOCKET) {
+					if (Options::Instance().IsDebug()) {
+						printf("accept[%d:%s] failed[background]\n", fd, !ipv6 ? "ipv4" : "ipv6");
+					}
+					
 					return -1;
 				}
-
-				long nonNegal = 1l;
-				if (setsockopt(comingSock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
-					close(comingSock);
-					return -1;
-				}
-
-				if (!ipv6) {
-					sockaddr_in remote;
-					socklen_t len = sizeof(remote);
-					getpeername(comingSock, (sockaddr*)&remote, &len);
-
-					if (remotePort)
-						*remotePort = ntohs(remote.sin_port);
-
-					if (remoteIp)
-						inet_ntop(AF_INET, (sockaddr*)&remote, remoteIp, remoteIpSize);
-				}
-				else {
-					sockaddr_in6 remote;
-					socklen_t len = sizeof(remote);
-					getpeername(comingSock, (sockaddr*)&remote, &len);
-
-					if (remotePort)
-						*remotePort = ntohs(remote.sin6_port);
-
-					if (remoteIp)
-						inet_ntop(AF_INET6, (sockaddr*)&remote, remoteIp, remoteIpSize);
-				}
-
-				return Apply(comingSock);
+			}
+			else{
+				guard.unlock();
 			}
 
-			return -1;
+			if (fcntl(comingSock, F_SETFL, fcntl(comingSock, F_GETFD, 0) | O_NONBLOCK) == -1) {
+				close(comingSock);
+				
+				if (Options::Instance().IsDebug()) {
+					printf("accept[%d:%s] set accepted socket noblock failed\n", fd, !ipv6 ? "ipv4" : "ipv6");
+				}
+				return -1;
+			}
+
+			long nonNegal = 1l;
+			if (setsockopt(comingSock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nonNegal, sizeof(nonNegal)) == -1) {
+				close(comingSock);
+
+				if (Options::Instance().IsDebug()) {
+					printf("accept[%d:%s] set accepted socket nodelay failed\n", fd, !ipv6 ? "ipv4" : "ipv6");
+				}
+				return -1;
+			}
+
+			if (!ipv6) {
+				sockaddr_in remote;
+				socklen_t len = sizeof(remote);
+				getpeername(comingSock, (sockaddr*)&remote, &len);
+
+				if (remotePort)
+					*remotePort = ntohs(remote.sin_port);
+
+				if (remoteIp)
+					inet_ntop(AF_INET, &remote.sin_addr, remoteIp, remoteIpSize);
+			}
+			else {
+				sockaddr_in6 remote;
+				socklen_t len = sizeof(remote);
+				getpeername(comingSock, (sockaddr*)&remote, &len);
+
+				if (remotePort)
+					*remotePort = ntohs(remote.sin6_port);
+
+				if (remoteIp)
+					inet_ntop(AF_INET6, &remote.sin6_addr, remoteIp, remoteIpSize);
+			}
+			
+			int32_t remoteFd = Apply(comingSock);
+			if (remoteFd < 0) {
+				close(comingSock);
+
+				if (Options::Instance().IsDebug()) {
+					printf("accept[%d:%s] apply accepted socket failed\n", fd, !ipv6 ? "ipv4" : "ipv6");
+				}
+				return -1;
+			}
+			
+			if (Options::Instance().IsDebug()) {
+				printf("accept[%d:%s] apply accepted socket[%d] sucess\n", fd, !ipv6 ? "ipv4" : "ipv6", remoteFd);
+			}
+			
+			return remoteFd;
 		}
 		
 		return -1;
@@ -324,6 +432,10 @@ namespace hyper_net {
 			else if (sock.sendSize + size > sock.sendMaxSize) {
 				sock.sendBuf = (char*)realloc(sock.sendBuf, (sock.sendSize + size) * 2);
 				sock.sendMaxSize = (sock.sendSize + size) * 2;
+			}
+			
+			if (Options::Instance().IsDebug()) {
+				printf("send[%d] resize send buff %d\n", sock.fd, sock.sendMaxSize);
 			}
 		};
 
@@ -347,11 +459,16 @@ namespace hyper_net {
 							resizeSendBuff(sock, size - offset);
 
 							SafeMemcpy(sock.sendBuf + sock.sendSize, sock.sendMaxSize - sock.sendSize, buf + offset, size - offset);
-							sock.sendSize += size;
+							sock.sendSize += (size - offset);
 						}
 						else {
+							if (Options::Instance().IsDebug()) {
+								printf("send [%d] failed %d\n", sock.fd, errno);
+							}
+							
 							auto * readingCo = sock.readingCo;
 
+							//printf("close2\n");
 							Close(sock);
 							guard.unlock();
 
@@ -363,11 +480,15 @@ namespace hyper_net {
 					else
 						offset += len;
 				}
+				
+				if (Options::Instance().IsDebug()) {
+					printf("send [%d] data size %d rest %d\n", sock.fd, offset, sock.sendSize);
+				}
 			}
 		}
 	}
 
-	int32_t NetEngine::Recv(int32_t fd, char * buf, int32_t size) {
+	int32_t NetEngine::Recv(int32_t fd, char * buf, int32_t size, int64_t timeout) {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
@@ -375,16 +496,36 @@ namespace hyper_net {
 			Socket& sock = _sockets[fd & MAX_SOCKET];
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == fd && !sock.acceptor && (sock.readingCo == nullptr || sock.readingCo == co) && !sock.closing) {
+				if (sock.isRecvTimeout) {
+					sock.readingCo = nullptr;
+					sock.isRecvTimeout = false;
+					sock.recvTimeout = 0;
+					
+					if (Options::Instance().IsDebug()) {
+						printf("recv [%d] timeout %d\n", sock.fd, timeout);
+					}
+					return -2;
+				}
+				
+				sock.recvTimeout = 0;
+				
 				int32_t len = recv(sock.sock, buf, size, 0);
 				if (len <= 0) {
 					if (errno == EAGAIN) {
 						co->SetStatus(CoroutineState::CS_BLOCK);
 						sock.readingCo = co;
+						if (timeout > 0) {
+							sock.recvTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + timeout;
+						}
 
 						guard.unlock();
 						hn_yield;
 					}
 					else {
+						if (Options::Instance().IsDebug()) {
+							printf("recv [%d] failed %d\n", sock.fd, errno);
+						}
+
 						Close(sock);
 
 						return len;
@@ -395,6 +536,10 @@ namespace hyper_net {
 			}
 			else {
 				guard.unlock();
+				
+				if (Options::Instance().IsDebug()) {
+					printf("recv [%d] finally failed\n", fd);
+				}
 				return -1;
 			}
 		}
@@ -405,12 +550,17 @@ namespace hyper_net {
 		if (fd <= 0)
 			return;
 		
+		if (Options::Instance().IsDebug()) {
+			printf("shutdown [%d]\n", fd);
+		}
+		
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {
 			if (!sock.acceptor) {
 				auto * readingCo = sock.readingCo;
 
+				//printf("close3\n");
 				Close(sock);
 				guard.unlock();
 
@@ -426,6 +576,10 @@ namespace hyper_net {
 		if (fd <= 0)
 			return;
 		
+		if (Options::Instance().IsDebug()) {
+			printf("close [%d]\n", fd);
+		}
+		
 		Socket& sock = _sockets[fd & MAX_SOCKET];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {
@@ -435,6 +589,7 @@ namespace hyper_net {
 					if (!sock.sending) {
 						auto * readingCo = sock.readingCo;
 
+						//printf("close4\n");
 						Close(sock);
 						guard.unlock();
 
@@ -471,8 +626,8 @@ namespace hyper_net {
 					}
 				}
 			}
-			else if (count < 0) {
-
+			else {
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 		}
 	}
@@ -495,6 +650,14 @@ namespace hyper_net {
 
 	void NetEngine::DealAccept(EpollEvent * evt, int32_t flag) {
 		if (flag & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+			if (Options::Instance().IsDebug()) {
+				int32_t error = 0;
+				socklen_t errlen = sizeof(error);
+				if (getsockopt(evt->sock, SOL_SOCKET, SO_ERROR, (void *)&error, &errlen) == 0) {
+					printf("accept[%d] [background] error %d\n", evt->fd, error);
+				}
+			}
+			
 			Shutdown(evt->fd);
 		}
 		else if (flag & EPOLLIN) {
@@ -537,7 +700,15 @@ namespace hyper_net {
 	}
 
 	void NetEngine::DealIO(EpollEvent * evt, int32_t flag) {
-		if (flag & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+		if (flag & (EPOLLERR | EPOLLHUP)) {
+			if (Options::Instance().IsDebug()) {
+				int32_t error = 0;
+				socklen_t errlen = sizeof(error);
+				if (getsockopt(evt->sock, SOL_SOCKET, SO_ERROR, (void *)&error, &errlen) == 0) {
+					printf("io[%d] [background] error %d\n", evt->fd, error);
+				}
+			}
+			
 			Shutdown(evt->fd);
 		}
 		else {
@@ -546,19 +717,48 @@ namespace hyper_net {
 				Socket& sock = _sockets[evt->fd & MAX_SOCKET];
 				std::unique_lock<spin_mutex> guard(sock.lock);
 				if (sock.fd == evt->fd && !sock.acceptor) {
+					sock.sending = false;
+					
 					int32_t offset = 0;
-					while (offset < sock.sendSize) {
+					while (true) {
+						if (offset >= sock.sendSize) {
+							sock.sendSize = 0;
+							
+							if (Options::Instance().IsDebug()) {
+								printf("send [%d] data size [backgournd] %d %d\n", sock.fd, offset, sock.sendSize);
+							}		
+							
+							if (sock.closing) {
+								Close(sock);
+								guard.unlock();
+								
+								valid = false;
+							}
+							break;
+						}
+						
 						int32_t len = send(sock.sock, sock.sendBuf + offset, sock.sendSize - offset, 0);
 						if (len <= 0) {
 							if (errno == EAGAIN) {
 								sock.sending = true;
-
-								memmove(sock.sendBuf, sock.sendBuf + offset, sock.sendSize - offset);
-								sock.sendSize -= offset;
+								
+								if (offset > 0) {
+									memmove(sock.sendBuf, sock.sendBuf + offset, sock.sendSize - offset);
+									sock.sendSize -= offset;
+								}
+								
+								if (Options::Instance().IsDebug()) {
+									printf("send [%d] data size [backgournd] %d %d\n", sock.fd, offset, sock.sendSize);
+								}
 							}
 							else {
+								if (Options::Instance().IsDebug()) {
+									printf("send [%d] failed %d\n", sock.fd, errno);
+								}
+								
 								auto * readingCo = sock.readingCo;
 
+								//printf("close5\n");
 								Close(sock);
 								guard.unlock();
 
@@ -578,14 +778,55 @@ namespace hyper_net {
 				Socket& sock = _sockets[evt->fd & MAX_SOCKET];
 				std::unique_lock<spin_mutex> guard(sock.lock);
 				if (sock.fd == evt->fd && !sock.acceptor && !sock.closing) {
-					auto * readingCo = sock.readingCo;
-					sock.readingCo = nullptr;
-					guard.unlock();
+					if (!sock.isRecvTimeout) {
+						auto * readingCo = sock.readingCo;
+						sock.readingCo = nullptr;
+						guard.unlock();
 
-					if (readingCo)
-						Scheduler::Instance().AddCoroutine(readingCo);
+						if (readingCo)
+							Scheduler::Instance().AddCoroutine(readingCo);
+					}
 				}
 			}
+		}
+		
+		//if (flag & EPOLLRDHUP) {
+		//	Shutdown(evt->fd);
+		//}
+	}
+	
+	void NetEngine::CheckRecvTimeout() {
+		int32_t i = 0;
+		while (!_terminate) {
+			int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+			int32_t count = MAX_SOCKET / TIMEOUT_BATCH;
+			while (i < MAX_SOCKET && count > 0) {
+				Socket& sock = _sockets[i];
+				if (sock.fd != 0 && !sock.acceptor && sock.readingCo && !sock.closing && sock.recvTimeout > 0 && now > sock.recvTimeout) {
+					Coroutine * co = nullptr;
+					{
+						std::unique_lock<spin_mutex> guard(sock.lock);
+						if (sock.fd != 0 && !sock.acceptor && sock.readingCo && !sock.closing && sock.recvTimeout > 0 && now > sock.recvTimeout) {
+							co = sock.readingCo;
+
+							sock.recvTimeout = 0;
+							sock.isRecvTimeout = true;
+						}
+					}
+
+					if (co) 
+						Scheduler::Instance().AddCoroutine(co);
+				}
+				
+				++i;
+				--count;
+			}
+			
+			if (i >= MAX_SOCKET)
+				i = 0;
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 	}
 
@@ -634,6 +875,8 @@ namespace hyper_net {
 					sock.ipv6 = ipv6;
 
 					sock.readingCo = nullptr;
+					sock.recvTimeout = 0;
+					sock.isRecvTimeout = false;
 
 					sock.sending = false;
 					sock.closing = false;
@@ -655,6 +898,10 @@ namespace hyper_net {
 	void NetEngine::Close(Socket & sock) {
 		epoll_ctl(sock.epollFd, EPOLL_CTL_DEL, sock.sock, nullptr);
 		close(sock.sock);
+		
+		if (Options::Instance().IsDebug()) {
+			printf("close [%d] sock\n", sock.fd);
+		}
 
 		sock.fd = 0;
 		sock.sock = INVALID_SOCKET;

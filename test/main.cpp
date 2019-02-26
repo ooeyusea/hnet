@@ -104,11 +104,12 @@ void test_server() {
 void test_random_data() {
 	static char * g_data = nullptr;
 	if (!g_data) {
-		g_data = new char[1024 * 1024];
+		g_data = new char[1024 * 1024 + 1];
 		for (int32_t i = 0; i < 1024 * 1024; ++i) {
 			g_data[i] = 'a' + rand() % 26;
 		}
 		g_data[1024 * 1024 - 1] = '$';
+		g_data[1024 * 1024] = 0;
 	}
 
 	static int32_t sizes[] = { 32, 128, 512, 1 * 1024, 4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, 1024 * 1024 };
@@ -126,11 +127,21 @@ void test_random_data() {
 			recvBuff[recv] = 0;
 			data += recvBuff;
 
+			if (size < 128)
+				printf("recv %s %d\n", recvBuff, recv);
+
 			if (std::find(recvBuff, recvBuff + recv, '$') != recvBuff + recv)
 				break;
 
-			//printf("%s %d\n", recvBuff, recv);
 			recv = hn_recv(c, recvBuff, 1023);
+		}
+
+		if (strncmp(data.c_str(), g_data + (1024 * 1024 - size), size) != 0) {
+			printf("%d data not match %d %d %d\n", c, size, recv, (int32_t)data.size());
+			if (size < 128) {
+				printf("    %s\n", data.c_str());
+				printf("    %s\n", g_data + (1024 * 1024 - size));
+			}
 		}
 
 		//printf("recv %d %s\n", size, data.c_str());
@@ -151,6 +162,7 @@ void test_fix_data(int32_t size) {
 		}
 		g_data[1024 * 1024 - 1] = 0;
 		g_data[size - 1] = '$';
+		g_data[size] = 0;
 	}
 	static char * g_end = "$";
 
@@ -173,8 +185,26 @@ void test_fix_data(int32_t size) {
 			recv = hn_recv(c, recvBuff, 1023);
 		}
 
+		if (strncmp(data.c_str(), g_data, size) != 0) {
+			printf("%d data not match %d %d %d\n", c, size, recv, (int32_t)data.size());
+			if (size < 128) {
+				printf("    %s\n", data.c_str());
+				printf("    %s\n", g_data);
+			}
+		}
+
 		//printf("recv %d %s\n", size, data.c_str());
 		hn_close(c);
+	};
+}
+
+void test_timeout() {
+	hn_fork[]{
+		auto c = hn_connect("127.0.0.1", 9027);
+
+		char recvBuff[1024] = { 0 };
+		int32_t recv = hn_recv(c, recvBuff, 1023, 5000);
+		printf("recv %d\n", recv);
 	};
 }
 
@@ -452,4 +482,6 @@ void start(int32_t argc, char ** argv) {
 		test_rpc_client();
 	else if (strcmp(argv[1], "rpc_server") == 0)
 		test_rpc_server();
+	else if (strcmp(argv[1], "timeout") == 0)
+		test_timeout();
 }

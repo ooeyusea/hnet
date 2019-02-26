@@ -58,6 +58,8 @@ namespace hyper_net {
 			bool ipv6 = false;
 
 			Coroutine * readingCo = nullptr;
+			int64_t recvTimeout = 0;
+			bool isRecvTimeout = false;
 
 			bool sending = false;
 			char * sendBuf = nullptr;
@@ -85,7 +87,7 @@ namespace hyper_net {
 		int32_t Accept(int32_t fd, char * remoteIp, int32_t remoteIpSize, int32_t * remotePort);
 
 		void Send(int32_t fd, const char * buf, int32_t size);
-		int32_t Recv(int32_t fd, char * buf, int32_t size);
+		int32_t Recv(int32_t fd, char * buf, int32_t size, int64_t timeout);
 
 		void Shutdown(int32_t fd);
 		void Close(int32_t fd);
@@ -95,6 +97,8 @@ namespace hyper_net {
 		void DealConnect(EpollEvent * evt, int32_t flag, int32_t epollFd);
 		void DealAccept(EpollEvent * evt, int32_t flag);
 		void DealIO(EpollEvent * evt, int32_t flag);
+		
+		void CheckRecvTimeout();
 
 		int32_t AddToWorker(EpollEvent * evt);
 

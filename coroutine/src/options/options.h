@@ -34,6 +34,8 @@ namespace hyper_net {
 		inline bool IsLogConsole() const { return _loggerConsole; }
 		inline int32_t GetLoggerLevel() const { return _loggerLevel; }
 
+		inline bool IsDebug() const { return _debug; }
+
 	private:
 		Options() {}
 		~Options() {}
@@ -58,6 +60,8 @@ namespace hyper_net {
 		int32_t _loggerThread;
 		bool _loggerConsole;
 		int32_t _loggerLevel;
+
+		bool _debug;
 	};
 }
 

@@ -1,5 +1,9 @@
 #include "coroutine.h"
 #include "options.h"
+#ifndef WIN32
+#include <sys/mman.h>
+#include <cmath>
+#endif
 
 namespace hyper_net {
 #ifdef WIN32

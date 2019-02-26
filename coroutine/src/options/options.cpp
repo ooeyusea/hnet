@@ -43,5 +43,7 @@ namespace hyper_net {
 		_loggerThread = 1;
 		_loggerConsole = true;
 		_loggerLevel = 2;
+
+		_debug = false;
 	}
 }

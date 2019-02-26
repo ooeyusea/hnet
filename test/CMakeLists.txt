@@ -49,14 +49,13 @@ ADD_EXECUTABLE(Test
 
 IF(WIN32)
 TARGET_LINK_LIBRARIES(Test
-	"${PROJECT_SOURCE_DIR}/../bin/$<CONFIGURATION>/hnet.lib"
+    "${PROJECT_SOURCE_DIR}/../bin/$<CONFIGURATION>/hnet.lib"
 )
 ENDIF(WIN32)
 
 IF(UNIX)
 TARGET_LINK_LIBRARIES(Test
-	"${PROJECT_SOURCE_DIR}/../bin/libhnet.a"
-	"${PROJECT_SOURCE_DIR}/../thirdparty/boost/lib/libboost_context.a"
+    "${PROJECT_SOURCE_DIR}/../bin/libhnet.a"
 )
 ENDIF(UNIX)
 
