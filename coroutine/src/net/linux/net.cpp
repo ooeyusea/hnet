@@ -6,14 +6,24 @@
 
 #define NET_INIT_FRAME 1024
 #define MAX_NET_THREAD 4
-#define TIMEOUT_BATCH 64
+#define TIMEOUT_BATCH 1024
 
 namespace hyper_net {
+	inline int32_t NextP2 (int32_t a) {
+		int32_t rval = 1;
+		while(rval < a) 
+			rval <<= 1;
+		return rval;
+
+	}
+	
 	NetEngine::NetEngine() {
 		_nextFd = 1;
+		_maxSocket = NextP2(Options::Instance().GetMaxSocketCount()) - 1;
+		_sockets = new Socket[_maxSocket + 1];
 
 		int32_t cpuCount = (int32_t)std::thread::hardware_concurrency();
-		int32_t threadCount = (cpuCount * 2 > MAX_NET_THREAD) ? MAX_NET_THREAD : cpuCount * 2;
+		int32_t threadCount = (cpuCount > MAX_NET_THREAD) ? MAX_NET_THREAD : cpuCount;
 		for (int32_t i = 0; i < threadCount; ++i) {
 			EpollWorker * worker = new EpollWorker;
 			_workers.push_back(worker);
@@ -34,7 +44,11 @@ namespace hyper_net {
 	}
 
 	NetEngine::~NetEngine() {
+		_terminate = true;
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
+		delete [] _sockets;
+		_sockets = nullptr;
 	}
 
 	int32_t NetEngine::Listen(const char * ip, const int32_t port, int32_t proto) {
@@ -279,12 +293,14 @@ namespace hyper_net {
 		co->SetStatus(CoroutineState::CS_BLOCK);
 		co->SetTemp(&error);
 
-		AddToWorker((EpollEvent*)&connector);
+		int32_t epollFd = AddToWorker((EpollEvent*)&connector);
 
 		hn_yield;
+		
+		epoll_ctl(epollFd, EPOLL_CTL_DEL, sock, nullptr);
 
 		if (error == 0) {
-			int32_t fd = Apply(sock);
+			int32_t fd = Apply(sock, false, proto == HN_IPV6);
 			if (fd > 0) {
 				if (Options::Instance().IsDebug()) {
 					printf("connect %s:%d %s success[%d]\n", ip, port, proto == HN_IPV4 ? "ipv4" : "ipv6", fd);
@@ -304,7 +320,7 @@ namespace hyper_net {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd && sock.acceptor) {
 			bool ipv6 = sock.ipv6;
@@ -439,7 +455,7 @@ namespace hyper_net {
 			}
 		};
 
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd && !sock.acceptor && !sock.closing) {
 			if (sock.sending) {
@@ -467,13 +483,14 @@ namespace hyper_net {
 							}
 							
 							auto * readingCo = sock.readingCo;
+							bool recving = sock.recving;
 
 							//printf("close2\n");
 							Close(sock);
 							guard.unlock();
 
-							if (readingCo)
-								Scheduler::Instance().AddCoroutine(co);
+							if (!recving && readingCo)
+								Scheduler::Instance().AddCoroutine(readingCo);
 						}
 						break;
 					}
@@ -492,8 +509,9 @@ namespace hyper_net {
 		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
 		OASSERT(co, "must rune in coroutine");
 
+		bool first = true;
 		while (true) {
-			Socket& sock = _sockets[fd & MAX_SOCKET];
+			Socket& sock = _sockets[fd & _maxSocket];
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == fd && !sock.acceptor && (sock.readingCo == nullptr || sock.readingCo == co) && !sock.closing) {
 				if (sock.isRecvTimeout) {
@@ -506,33 +524,72 @@ namespace hyper_net {
 					}
 					return -2;
 				}
+
+				if (first)
+					sock.recvTimeout = 0;
+				sock.readingCo = co;
+				sock.recving = true;
+				sock.wakeupRecv = false;
+
+				socket_t s = sock.sock;
+				guard.unlock();
 				
-				sock.recvTimeout = 0;
-				
-				int32_t len = recv(sock.sock, buf, size, 0);
-				if (len <= 0) {
-					if (errno == EAGAIN) {
-						co->SetStatus(CoroutineState::CS_BLOCK);
-						sock.readingCo = co;
-						if (timeout > 0) {
-							sock.recvTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + timeout;
+				int32_t offset = 0;
+				while (true) {
+					if (offset >= size) {
+						guard.lock();
+
+						if (sock.fd == fd && !sock.acceptor && sock.readingCo == co) {
+							sock.readingCo = nullptr;
+							sock.recving = false;
+						}
+						return offset;
+					}
+
+					int32_t len = recv(s, buf + offset, size - offset, 0);
+					if (len <= 0) {
+						guard.lock();
+
+						if (len < 0 && errno == EAGAIN) {
+							if (sock.fd == fd && !sock.acceptor && sock.readingCo == co) {
+								if (offset == 0) {
+									if (!sock.wakeupRecv) {
+										sock.recving = false;
+										co->SetStatus(CoroutineState::CS_BLOCK);
+										if (first && timeout > 0) {
+											sock.recvTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + timeout;
+											first = false;
+										}
+
+										if (Options::Instance().IsDebug()) {
+											printf("recv [%d] pending\n", sock.fd);
+										}
+
+										guard.unlock();
+										hn_yield;
+									}
+									break;
+								}
+								else {
+									sock.readingCo = nullptr;
+									sock.recving = false;
+									return offset;
+								}
+							}
 						}
 
-						guard.unlock();
-						hn_yield;
-					}
-					else {
 						if (Options::Instance().IsDebug()) {
-							printf("recv [%d] failed %d\n", sock.fd, errno);
+							printf("recv [%d] error %d\n", fd, errno);
 						}
-
-						Close(sock);
-
-						return len;
+						
+						if (sock.fd == fd && !sock.acceptor && sock.readingCo == co)
+							Close(sock);
+						
+						return offset > 0 ? offset : len;
 					}
+					else
+						offset += len;
 				}
-				else
-					return len;
 			}
 			else {
 				guard.unlock();
@@ -554,17 +611,17 @@ namespace hyper_net {
 			printf("shutdown [%d]\n", fd);
 		}
 		
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {
 			if (!sock.acceptor) {
 				auto * readingCo = sock.readingCo;
+				bool recving = sock.recving;
 
-				//printf("close3\n");
 				Close(sock);
 				guard.unlock();
 
-				if (readingCo)
+				if (!recving && readingCo)
 					Scheduler::Instance().AddCoroutine(readingCo);
 			}
 			else
@@ -580,7 +637,7 @@ namespace hyper_net {
 			printf("close [%d]\n", fd);
 		}
 		
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {
 			if (!sock.acceptor) {
@@ -588,12 +645,13 @@ namespace hyper_net {
 					sock.closing = true;
 					if (!sock.sending) {
 						auto * readingCo = sock.readingCo;
+						bool recving = sock.recving;
 
 						//printf("close4\n");
 						Close(sock);
 						guard.unlock();
 
-						if (readingCo)
+						if (!recving && readingCo)
 							Scheduler::Instance().AddCoroutine(readingCo);
 					}
 				}
@@ -604,7 +662,7 @@ namespace hyper_net {
 	}
 
 	bool NetEngine::Test(int32_t fd) {
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		if (sock.fd == fd) {
 			if (!sock.closing)
 				return true;
@@ -661,7 +719,7 @@ namespace hyper_net {
 			Shutdown(evt->fd);
 		}
 		else if (flag & EPOLLIN) {
-			Socket& sock = _sockets[evt->fd & MAX_SOCKET];
+			Socket& sock = _sockets[evt->fd & _maxSocket];
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == evt->fd && sock.acceptor) {
 				sock.waiting = false;
@@ -714,7 +772,7 @@ namespace hyper_net {
 		else {
 			bool valid = true;
 			if (flag & EPOLLOUT) {
-				Socket& sock = _sockets[evt->fd & MAX_SOCKET];
+				Socket& sock = _sockets[evt->fd & _maxSocket];
 				std::unique_lock<spin_mutex> guard(sock.lock);
 				if (sock.fd == evt->fd && !sock.acceptor) {
 					sock.sending = false;
@@ -729,8 +787,14 @@ namespace hyper_net {
 							}		
 							
 							if (sock.closing) {
+								auto * readingCo = sock.readingCo;
+								bool recving = sock.recving;
+
 								Close(sock);
 								guard.unlock();
+
+								if (!recving && readingCo)
+									Scheduler::Instance().AddCoroutine(readingCo);
 								
 								valid = false;
 							}
@@ -757,12 +821,13 @@ namespace hyper_net {
 								}
 								
 								auto * readingCo = sock.readingCo;
+								bool recving = sock.recving;
 
 								//printf("close5\n");
 								Close(sock);
 								guard.unlock();
 
-								if (readingCo)
+								if (!recving && readingCo)
 									Scheduler::Instance().AddCoroutine(readingCo);
 								valid = false;
 							}
@@ -775,16 +840,28 @@ namespace hyper_net {
 			}
 
 			if (valid && (flag & EPOLLIN)) {
-				Socket& sock = _sockets[evt->fd & MAX_SOCKET];
+				Socket& sock = _sockets[evt->fd & _maxSocket];
 				std::unique_lock<spin_mutex> guard(sock.lock);
 				if (sock.fd == evt->fd && !sock.acceptor && !sock.closing) {
 					if (!sock.isRecvTimeout) {
-						auto * readingCo = sock.readingCo;
-						sock.readingCo = nullptr;
-						guard.unlock();
+						if (!sock.recving) {
+							auto * readingCo = sock.readingCo;
+							sock.readingCo = nullptr;
+							guard.unlock();
 
-						if (readingCo)
-							Scheduler::Instance().AddCoroutine(readingCo);
+							if (readingCo)
+								Scheduler::Instance().AddCoroutine(readingCo);
+						}
+						else {
+							sock.wakeupRecv = true;
+
+							guard.unlock();
+						}
+
+
+						if (Options::Instance().IsDebug()) {
+							printf("recv [%d] wakeup recv when %s\n", sock.fd, sock.recving ? "recving" : "no recving");
+						}
 					}
 				}
 			}
@@ -800,15 +877,18 @@ namespace hyper_net {
 		while (!_terminate) {
 			int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
-			int32_t count = MAX_SOCKET / TIMEOUT_BATCH;
-			while (i < MAX_SOCKET && count > 0) {
+			int32_t count = TIMEOUT_BATCH;
+			while (i < _maxSocket && count > 0) {
 				Socket& sock = _sockets[i];
 				if (sock.fd != 0 && !sock.acceptor && sock.readingCo && !sock.closing && sock.recvTimeout > 0 && now > sock.recvTimeout) {
 					Coroutine * co = nullptr;
 					{
 						std::unique_lock<spin_mutex> guard(sock.lock);
 						if (sock.fd != 0 && !sock.acceptor && sock.readingCo && !sock.closing && sock.recvTimeout > 0 && now > sock.recvTimeout) {
-							co = sock.readingCo;
+							if (!sock.recving) {
+								co = sock.readingCo;
+								sock.readingCo = nullptr;
+							}
 
 							sock.recvTimeout = 0;
 							sock.isRecvTimeout = true;
@@ -823,7 +903,7 @@ namespace hyper_net {
 				--count;
 			}
 			
-			if (i >= MAX_SOCKET)
+			if (i >= _maxSocket)
 				i = 0;
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -857,7 +937,7 @@ namespace hyper_net {
 	}
 
 	int32_t NetEngine::Apply(socket_t s, bool acceptor, bool ipv6) {
-		int32_t count = MAX_SOCKET;
+		int32_t count = _maxSocket;
 		while (count--) {
 			int32_t fd = _nextFd;
 
@@ -865,7 +945,7 @@ namespace hyper_net {
 			if (_nextFd <= 0)
 				_nextFd = 1;
 
-			Socket& sock = _sockets[fd & MAX_SOCKET];
+			Socket& sock = _sockets[fd & _maxSocket];
 			std::unique_lock<spin_mutex> guard(sock.lock, std::defer_lock);
 			if (guard.try_lock()) {
 				if (sock.fd == 0) {
@@ -906,6 +986,10 @@ namespace hyper_net {
 		sock.fd = 0;
 		sock.sock = INVALID_SOCKET;
 		sock.readingCo = nullptr;
+		sock.recving = false;
+		sock.wakeupRecv = false;
+		sock.recvTimeout = 0;
+		sock.isRecvTimeout = false;
 
 		if (sock.sendBuf) {
 			free(sock.sendBuf);

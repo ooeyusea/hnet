@@ -24,6 +24,7 @@ namespace hyper_net {
 		_dispatchThreadCycle = 1000;
 
 		_epollEventSize = 512;
+		_maxSocketCount = 65536;
 
 #ifdef WIN32
 		SYSTEM_INFO sysInfo;
@@ -44,6 +45,6 @@ namespace hyper_net {
 		_loggerConsole = true;
 		_loggerLevel = 2;
 
-		_debug = false;
+		_debug = true;
 	}
 }

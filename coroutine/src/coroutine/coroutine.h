@@ -79,6 +79,7 @@ namespace hyper_net {
 
 		Processer * _processer;
 		bool _inQueue;
+		bool _running;
 
 		void * _p;
 		int32_t _stackSize;

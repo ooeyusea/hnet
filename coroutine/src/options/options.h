@@ -22,6 +22,7 @@ namespace hyper_net {
 		inline int64_t GetDispatchThreadCycle() const { return _dispatchThreadCycle; }
 
 		inline int32_t GetEpollEventSize() const { return _epollEventSize; }
+		inline int32_t GetMaxSocketCount() const { return _maxSocketCount; }
 
 		inline int32_t GetPageSize() const { return _pageSize; }
 		inline bool IsProtectStack() const { return _protectStack; }
@@ -49,6 +50,7 @@ namespace hyper_net {
 		int64_t _dispatchThreadCycle;
 
 		int32_t _epollEventSize;
+		int32_t _maxSocketCount;
 
 		int32_t _pageSize;
 		bool _protectStack;

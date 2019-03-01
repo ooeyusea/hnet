@@ -12,16 +12,16 @@ namespace hyper_net {
 		spin_mutex(const spin_mutex&) = delete;
 		spin_mutex& operator= (const spin_mutex&) = delete;
 
-		bool try_lock() {
+		inline bool try_lock() {
 			return !flag.test_and_set(std::memory_order_acquire);
 		}
 
-		void lock() {
+		inline void lock() {
 			while (flag.test_and_set(std::memory_order_acquire))
 				;
 		}
 
-		void unlock() {
+		inline void unlock() {
 			flag.clear(std::memory_order_release);
 		}
 	};
@@ -33,26 +33,41 @@ namespace hyper_net {
 		spin_rw_mutex(const spin_rw_mutex&) = delete;
 		spin_rw_mutex& operator= (const spin_rw_mutex&) = delete;
 
-		void lock() {
+		inline bool try_lock() {
+			int expect = 0;
+			return flag.compare_exchange_weak(expect, -1, std::memory_order_acquire);
+		}
+
+		inline void lock() {
 			int expect = 0;
 			do {
 				expect = 0;
-			} while (flag.compare_exchange_weak(expect, -1, std::memory_order_acquire));
+			} while (!flag.compare_exchange_weak(expect, -1, std::memory_order_acquire));
 		}
 
-		void unlock() {
+		inline void unlock() {
 			flag.store(0, std::memory_order_release);
 		}
 
-		void lock_shared() {
+		inline bool try_lock_shared() {
+			int expect = 0;
+			do {
+				if (expect < 0)
+					return false;
+			} while (!flag.compare_exchange_weak(expect, expect + 1, std::memory_order_acquire));
+
+			return true;
+		}
+
+		inline void lock_shared() {
 			int expect = 0;
 			do {
 				if (expect < 0)
 					expect = 0;
-			} while (flag.compare_exchange_weak(expect, expect + 1, std::memory_order_acquire));
+			} while (!flag.compare_exchange_weak(expect, expect + 1, std::memory_order_acquire));
 		}
 
-		void unlock_shared() {
+		inline void unlock_shared() {
 			flag.fetch_sub(1, std::memory_order_release);
 		}
 	};

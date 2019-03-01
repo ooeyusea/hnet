@@ -10,8 +10,6 @@
 #include <sys/ioctl.h>
 #include <netinet/tcp.h>
 
-#define MAX_SOCKET 0xFFFF
-
 typedef int32_t socket_t;
 #define INVALID_SOCKET -1
 
@@ -60,6 +58,8 @@ namespace hyper_net {
 			Coroutine * readingCo = nullptr;
 			int64_t recvTimeout = 0;
 			bool isRecvTimeout = false;
+			bool recving = false;
+			bool wakeupRecv = false;
 
 			bool sending = false;
 			char * sendBuf = nullptr;
@@ -110,8 +110,9 @@ namespace hyper_net {
 		void Close(Socket & sock);
 		void ShutdownListener(std::unique_lock<spin_mutex>& guard, Socket& sock);
 
-		Socket _sockets[MAX_SOCKET + 1];
+		Socket * _sockets;
 		int32_t _nextFd;
+		int32_t _maxSocket;
 
 		bool _terminate;
 		std::vector<EpollWorker *> _workers;

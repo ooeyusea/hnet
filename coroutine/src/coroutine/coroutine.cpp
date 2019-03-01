@@ -6,6 +6,8 @@
 #endif
 
 namespace hyper_net {
+	thread_local Coroutine * g_now = nullptr;
+
 #ifdef WIN32
 	void * MallocStack(int32_t stackSize) {
 		if (!Options::Instance().IsProtectStack()) {
@@ -77,6 +79,7 @@ namespace hyper_net {
 		_status = CoroutineState::CS_RUNNABLE;
 		_processer = nullptr;
 		_inQueue = false;
+		_running = false;
 
 		_temp = nullptr;
 	}
@@ -108,6 +111,11 @@ namespace hyper_net {
 	}
 
 	void Coroutine::SwapIn() {
+		OASSERT(!_running, "already in running");
+
+		_running = true;
+
+		g_now = this;
 #ifndef USE_FCONTEXT
 		SwitchToFiber(_ctx);
 #else
@@ -116,6 +124,11 @@ namespace hyper_net {
 	}
 
 	void Coroutine::SwapOut() {
+		OASSERT(_running, "not running");
+
+		_running = false;
+
+		g_now = this;
 #ifndef USE_FCONTEXT
 		SwitchToFiber(GetTlsContext());
 #else
