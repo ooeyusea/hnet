@@ -3,8 +3,6 @@
 #include "util.h"
 #include "spin_mutex.h"
 
-#define MAX_SOCKET 0xFFFF
-
 typedef SOCKET socket_t;
 
 namespace hyper_net {
@@ -116,8 +114,9 @@ namespace hyper_net {
 		int32_t Apply(socket_t sock, bool acceptor = false, bool ipv6 = false);
 		void ShutdownListener(std::unique_lock<spin_mutex>& guard, Socket& sock);
 
-		Socket _sockets[MAX_SOCKET + 1];
+		Socket * _sockets;
 		int32_t _nextFd;
+		int32_t _maxSocket;
 
 		bool _terminate;
 

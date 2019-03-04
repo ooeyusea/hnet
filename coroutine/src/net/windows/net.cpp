@@ -4,6 +4,7 @@
 #include <mswsock.h> 
 #include "scheduler.h"
 #include <ws2tcpip.h>
+#include "options.h"
 
 #define NET_INIT_FRAME 1024
 #define MAX_NET_THREAD 4
@@ -61,8 +62,18 @@ namespace hyper_net {
 		//printf("closesocket %lld\n", sock);
 	}
 
+	inline int32_t NextP2(int32_t a) {
+		int32_t rval = 1;
+		while (rval < a)
+			rval <<= 1;
+		return rval;
+
+	}
+
 	NetEngine::NetEngine() {
 		_nextFd = 1;
+		_maxSocket = NextP2(Options::Instance().GetMaxSocketCount()) - 1;
+		_sockets = new Socket[_maxSocket + 1];
 
 		WSADATA wsaData;
 		if (0 != WSAStartup(MAKEWORD(2, 2), &wsaData))
@@ -94,6 +105,12 @@ namespace hyper_net {
 	NetEngine::~NetEngine() {
 		CloseHandle(_completionPort);
 		WSACleanup();
+
+		_terminate = true;
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+		delete _sockets;
+		_sockets = nullptr;
 	}
 
 	int32_t NetEngine::Listen(const char * ip, const int32_t port, int32_t proto) {
@@ -283,7 +300,7 @@ namespace hyper_net {
 		OASSERT(co, "must rune in coroutine");
 
 		while (true) {
-			Socket& sock = _sockets[fd & MAX_SOCKET];
+			Socket& sock = _sockets[fd & _maxSocket];
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == fd && sock.acceptor) {
 				if (!sock.accepts.empty()) {
@@ -349,7 +366,7 @@ namespace hyper_net {
 		frame->size = size;
 		SafeMemcpy(frame->data, size, buf, size);
 
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd && !sock.acceptor && !sock.closing && !sock.closed) {
 			frame->next = sock.sendChain;
@@ -383,7 +400,7 @@ namespace hyper_net {
 		OASSERT(co, "must rune in coroutine");
 
 		while (true) {
-			Socket& sock = _sockets[fd & MAX_SOCKET];
+			Socket& sock = _sockets[fd & _maxSocket];
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == fd && !sock.acceptor && (sock.readingCo == nullptr || sock.readingCo == co) && !sock.closing && !sock.closed) {
 				if (sock.recvSize > 0) {
@@ -437,7 +454,7 @@ namespace hyper_net {
 		if (fd <= 0)
 			return;
 
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {
 			if (!sock.acceptor) {
@@ -452,7 +469,7 @@ namespace hyper_net {
 	}
 
 	bool NetEngine::Test(int32_t fd) {
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		if (sock.fd == fd) {
 			if (!sock.closed && !sock.closing)
 				return true;
@@ -464,7 +481,7 @@ namespace hyper_net {
 		if (fd <= 0)
 			return;
 
-		Socket& sock = _sockets[fd & MAX_SOCKET];
+		Socket& sock = _sockets[fd & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == fd) {
 			if (!sock.acceptor) {
@@ -502,7 +519,7 @@ namespace hyper_net {
 		while (!_terminate) {
 			int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
-			for (int32_t i = 0; i < MAX_SOCKET; ++i) {
+			for (int32_t i = 0; i < _maxSocket; ++i) {
 				Socket& sock = _sockets[i];
 				if (sock.fd != 0 && !sock.acceptor && sock.readingCo && !sock.closing && !sock.closed && sock.recvTimeout > 0 && now > sock.recvTimeout) {
 					Coroutine * co = nullptr;
@@ -561,7 +578,7 @@ namespace hyper_net {
 			int32_t fd = evt->accept.socket;
 			socket_t sock = evt->sock;
 			if (sock != INVALID_SOCKET) {
-				Socket& acceptSock = _sockets[fd & MAX_SOCKET];
+				Socket& acceptSock = _sockets[fd & _maxSocket];
 				std::unique_lock<spin_mutex> guard(acceptSock.lock);
 				if (acceptSock.fd == fd) {
 					acceptSock.accepts.push_back(sock);
@@ -612,7 +629,7 @@ namespace hyper_net {
 
 	void NetEngine::DealSend(IocpEvent * evt) {
 		//hn_info("send {}:{}", evt->socket, evt->code);
-		Socket& sock = _sockets[evt->socket & MAX_SOCKET];
+		Socket& sock = _sockets[evt->socket & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == evt->socket) {
 			sock.sending = false;
@@ -671,7 +688,7 @@ namespace hyper_net {
 		//hn_info("recv {}:{}", evt->socket, evt->code);
 		Coroutine * co = nullptr;
 		{
-			Socket& sock = _sockets[evt->socket & MAX_SOCKET];
+			Socket& sock = _sockets[evt->socket & _maxSocket];
 			std::unique_lock<spin_mutex> guard(sock.lock);
 			if (sock.fd == evt->socket) {
 				sock.recving = false;
@@ -812,7 +829,7 @@ namespace hyper_net {
 	}
 
 	int32_t NetEngine::Apply(socket_t s, bool acceptor, bool ipv6) {
-		int32_t count = MAX_SOCKET;
+		int32_t count = _maxSocket;
 		while (count--) {
 			int32_t fd = _nextFd;
 
@@ -820,7 +837,7 @@ namespace hyper_net {
 			if (_nextFd <= 0)
 				_nextFd = 1;
 
-			Socket& sock = _sockets[fd & MAX_SOCKET];
+			Socket& sock = _sockets[fd & _maxSocket];
 			std::unique_lock<spin_mutex> guard(sock.lock, std::defer_lock);
 			if (guard.try_lock()) {
 				if (sock.fd == 0) {
