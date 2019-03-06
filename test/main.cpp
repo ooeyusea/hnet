@@ -452,6 +452,22 @@ void test_echo_client() {
 	};
 }
 
+void test_shared_mutex() {
+	hn_shared_mutex mutex(true);
+
+	for (int32_t i = 0; i < 5; ++i) {
+		hn_fork[&mutex]{
+			hyper_net::shared_lock<hn_shared_mutex> lock;
+			printf("share locked \n");
+			hn_sleep 15000;
+		};
+	}
+
+	hn_sleep 10000;
+	std::unique_lock<hn_shared_mutex> lock;
+	printf("locked \n");
+}
+
 void start(int32_t argc, char ** argv) {
 	hn_info("case:{}", argv[1]);
 	hn_debug("case:{}", argv[1]);
