@@ -109,8 +109,8 @@ namespace hyper_net {
 		_terminate = true;
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-		delete _sockets;
-		_sockets = nullptr;
+		//delete _sockets;
+		//_sockets = nullptr;
 	}
 
 	int32_t NetEngine::Listen(const char * ip, const int32_t port, int32_t proto) {

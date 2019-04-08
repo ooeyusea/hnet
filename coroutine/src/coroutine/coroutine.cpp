@@ -97,15 +97,19 @@ namespace hyper_net {
 	}
 
 	void Coroutine::Run() {
+#ifndef _DEBUG
 		try {
+#endif //_DEBUG
 			_fn();
 			_fn = CoFuncType();
+#ifndef _DEBUG
 		}
 		catch (...) {
 			_fn = CoFuncType();
-
+		
 			std::exception_ptr eptr = std::current_exception();
 		}
+#endif //#_DEBUG
 		_status = CoroutineState::CS_DONE;
 		SwapOut();
 	}
