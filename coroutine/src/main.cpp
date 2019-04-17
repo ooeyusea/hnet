@@ -28,8 +28,21 @@ namespace hyper_net {
 		return *this;
 	}
 
-	void Yielder::Do() {
+	coroutine_t Yielder::Current() {
+		return static_cast<coroutine_t>(Scheduler::Instance().CurrentCoroutine());
+	}
+
+	void Yielder::Do(bool block) {
+		if (block) {
+			Coroutine * co = Scheduler::Instance().CurrentCoroutine();
+			co->SetStatus(CoroutineState::CS_BLOCK);
+		}
+
 		Processer::StaticCoYield();
+	}
+
+	void Yielder::Resume(coroutine_t co) {
+		Scheduler::Instance().AddCoroutine(static_cast<Coroutine *>(co));
 	}
 
 	int32_t NetAdapter::Connect(const char * ip, const int32_t port, int32_t proto) {
