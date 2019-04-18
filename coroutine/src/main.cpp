@@ -32,6 +32,15 @@ namespace hyper_net {
 		return static_cast<coroutine_t>(Scheduler::Instance().CurrentCoroutine());
 	}
 
+	void Yielder::SetTemp(void * p) {
+		Coroutine * co = Scheduler::Instance().CurrentCoroutine();
+		co->SetTemp(p);
+	}
+
+	void * Yielder::GetTemp(coroutine_t co) {
+		return static_cast<Coroutine *>(co)->GetTemp();
+	}
+
 	void Yielder::Do(bool block) {
 		if (block) {
 			Coroutine * co = Scheduler::Instance().CurrentCoroutine();
