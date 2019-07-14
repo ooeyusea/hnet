@@ -109,8 +109,8 @@ namespace hyper_net {
 		_terminate = true;
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-		delete _sockets;
-		_sockets = nullptr;
+		//delete _sockets;
+		//_sockets = nullptr;
 	}
 
 	int32_t NetEngine::Listen(const char * ip, const int32_t port, int32_t proto) {
@@ -197,12 +197,13 @@ namespace hyper_net {
 		socket_t sock = INVALID_SOCKET;
 		if (proto == HN_IPV4) {
 			if (INVALID_SOCKET == (sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
-				OASSERT(false, "Connect error %d", ::WSAGetLastError());
+				hn_trace("connect {}:{} create socket error {}", ip, port, ::WSAGetLastError());
 				return -1;
 			}
 
 			DWORD value = 0;
 			if (SOCKET_ERROR == ioctlsocket(sock, FIONBIO, &value)) {
+				hn_trace("connect {}:{} set socket nonblock error {}", ip, port, ::WSAGetLastError());
 				CloseSocket(sock);
 				return -1;
 			}
@@ -211,6 +212,7 @@ namespace hyper_net {
 			setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
 
 			if (_completionPort != CreateIoCompletionPort((HANDLE)sock, _completionPort, sock, 0)) {
+				hn_trace("connect {}:{} attach to iocp error {}", ip, port, ::WSAGetLastError());
 				CloseSocket(sock);
 				return -1;
 			}
@@ -224,17 +226,23 @@ namespace hyper_net {
 			connector.connect.code = 0;
 
 			remote.sin_family = AF_INET;
-			if (SOCKET_ERROR == bind(sock, (sockaddr *)&remote, sizeof(sockaddr_in)))
+			if (SOCKET_ERROR == bind(sock, (sockaddr*)& remote, sizeof(sockaddr_in))) {
+				hn_trace("connect {}:{} bind error {}", ip, port, ::WSAGetLastError());
 				return -1;
+			}
 
 			remote.sin_port = htons(port);
-			if ((remote.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE)
+			if ((remote.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) {
+				hn_trace("ip {} is invalid", ip);
 				return -1;
+			}
 
 			BOOL res = g_connect(sock, (sockaddr *)&remote, sizeof(sockaddr_in), nullptr, 0, nullptr, (LPOVERLAPPED)&connector.connect);
 			int32_t errCode = WSAGetLastError();
-			if (!res && errCode != WSA_IO_PENDING)
+			if (!res && errCode != WSA_IO_PENDING) {
+				hn_trace("connect {}:{} error {}", ip, port, ::WSAGetLastError());
 				return -1;
+			}
 		}
 		else {
 			if (INVALID_SOCKET == (sock = WSASocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED))) {
@@ -486,6 +494,8 @@ namespace hyper_net {
 		if (sock.fd == fd) {
 			if (!sock.acceptor) {
 				if (!sock.closing && !sock.closed) {
+					hn_trace("close socket {}", fd);
+
 					sock.closing = true;
 					if (!sock.sending) {
 						CloseSocket(sock.sock);
@@ -603,6 +613,7 @@ namespace hyper_net {
 				Shutdown(fd);
 		}
 		else {
+			hn_trace("socket {} accept error: {}", evt->accept.socket, evt->accept.code);
 			//printf("shutdown listener\n");
 			CloseSocket(evt->sock);
 			evt->sock = INVALID_SOCKET;
@@ -618,6 +629,8 @@ namespace hyper_net {
 			setsockopt(evt->connect.sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&nodelay, sizeof(nodelay));
 		}
 		else {
+			hn_trace("socket {} connect error: {}", evt->connect.socket, evt->connect.code);
+
 			CloseSocket(evt->connect.sock);
 
 			socket_t& sock = *(socket_t*)evt->co->GetTemp();
@@ -628,7 +641,7 @@ namespace hyper_net {
 	}
 
 	void NetEngine::DealSend(IocpEvent * evt) {
-		//hn_info("send {}:{}", evt->socket, evt->code);
+		//hn_info("send {}:{} {}", evt->socket, evt->code, evt->bytes);
 		Socket& sock = _sockets[evt->socket & _maxSocket];
 		std::unique_lock<spin_mutex> guard(sock.lock);
 		if (sock.fd == evt->socket) {
@@ -660,6 +673,7 @@ namespace hyper_net {
 				}
 				else {
 					if (evt->code != ERROR_IO_PENDING) {
+						hn_trace("socket {} deal send error {}", evt->socket, evt->code);
 						CloseSocket(sock.sock);
 						sock.closed = true;
 					}
@@ -685,7 +699,7 @@ namespace hyper_net {
 	}
 
 	void NetEngine::DealRecv(IocpEvent * evt) {
-		//hn_info("recv {}:{}", evt->socket, evt->code);
+		//hn_info("recv {}:{} {}", evt->socket, evt->code, evt->bytes);
 		Coroutine * co = nullptr;
 		{
 			Socket& sock = _sockets[evt->socket & _maxSocket];
@@ -698,6 +712,13 @@ namespace hyper_net {
 				if (evt->code == ERROR_SUCCESS && evt->bytes > 0)
 					sock.recvSize += evt->bytes;
 				else {
+					if (evt->code == ERROR_SUCCESS) {
+						hn_trace("socket {} reset by remote", evt->socket);
+					}
+					else {
+						hn_trace("socket {} deal recv error {}", evt->socket, evt->code);
+					}
+
 					if (!sock.closed) {
 						CloseSocket(sock.sock);
 						sock.closed = true;
@@ -747,8 +768,10 @@ namespace hyper_net {
 		sock.evtSend.bytes = 0;
 		if (SOCKET_ERROR == WSASend(sock.sock, &sock.evtSend.buf, 1, nullptr, 0, (LPWSAOVERLAPPED)&sock.evtSend, nullptr)) {
 			sock.evtSend.code = WSAGetLastError();
-			if (WSA_IO_PENDING != sock.evtSend.code)
+			if (WSA_IO_PENDING != sock.evtSend.code) {
+				hn_trace("socket {} do send failed {}", sock.fd, sock.evtRecv.code);
 				return false;
+			}
 		}
 		sock.sending = true;
 		return true;
@@ -768,8 +791,10 @@ namespace hyper_net {
 		sock.evtRecv.bytes = 0;
 		if (SOCKET_ERROR == WSARecv(sock.sock, &sock.evtRecv.buf, 1, nullptr, &flags, (LPWSAOVERLAPPED)&sock.evtRecv, nullptr)) {
 			sock.evtRecv.code = WSAGetLastError();
-			if (WSA_IO_PENDING != sock.evtRecv.code)
+			if (WSA_IO_PENDING != sock.evtRecv.code) {
+				hn_trace("socket {} do recv failed {}", sock.fd, sock.evtRecv.code);
 				return false;
+			}
 		}
 
 		sock.recving = true;
@@ -799,7 +824,7 @@ namespace hyper_net {
 
 		int32_t errCode = WSAGetLastError();
 		if (!res && errCode != WSA_IO_PENDING) {
-			OASSERT(false, "do accept failed %d", errCode);
+			hn_trace("socket {} do accept failed {}", acceptor->accept.socket, errCode);
 			CloseSocket(acceptor->sock);
 			delete acceptor;
 			return false;
@@ -819,9 +844,10 @@ namespace hyper_net {
 		if (nullptr == evt)
 			return nullptr;
 
-		evt->code = WSAGetLastError();
+		evt->code = 0;
 		evt->bytes = bytes;
 		if (!ret) {
+			evt->code = GetLastError();
 			if (WAIT_TIMEOUT == evt->code)
 				return nullptr;
 		}
